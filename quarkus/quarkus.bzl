@@ -105,40 +105,42 @@ def quarkus_application(
     # For now, create a simple runner that uses the augmented output
     # TODO: Create proper java_binary that uses quarkus-run.jar
 
-    native.sh_binary(
-        name = name,
-        srcs = [name + "_runner.sh"],
-        data = [
-            ":" + augmented_name,
-        ] + runtime_extensions,
-        visibility = visibility,
-        tags = tags,
-    )
-
     # Generate runner script
+    runner_script = name + "_runner.sh"
     native.genrule(
         name = name + "_runner_script",
-        outs = [name + "_runner.sh"],
+        outs = [runner_script],
         cmd = """
-cat > $@ << 'EOF'
+cat > $@ << 'RUNNER_EOF'
 #!/bin/bash
 set -e
-
-# Find the script directory
 SCRIPT_DIR="$$(cd "$$(dirname "$$0")" && pwd)"
 QUARKUS_APP="$$SCRIPT_DIR/{augmented}-quarkus-app"
-
-# Run with explicit classpath including lib/boot and lib/main
-exec java {jvm_flags} \\
-    -cp "$$QUARKUS_APP/lib/boot/*:$$QUARKUS_APP/lib/main/*:$$QUARKUS_APP/quarkus-run.jar" \\
+exec java {jvm_flags} \
+    -cp "$$QUARKUS_APP/lib/boot/*:$$QUARKUS_APP/lib/main/*:$$QUARKUS_APP/quarkus-run.jar" \
     io.quarkus.bootstrap.runner.QuarkusEntryPoint "$$@"
-EOF
+RUNNER_EOF
 chmod +x $@
 """.format(
             augmented = augmented_name,
             jvm_flags = " ".join(jvm_flags),
         ),
+        tags = tags + ["manual"],
         visibility = ["//visibility:private"],
+    )
+
+    # Executable target using native.filegroup + wrapper
+    native.genrule(
+        name = name,
+        srcs = [
+            ":" + name + "_runner_script",
+            ":" + augmented_name,
+        ],
+        outs = [name + ".sh"],
+        cmd = "cp $(location :" + name + "_runner_script) $@",
+        executable = True,
+        visibility = visibility,
+        tags = tags,
     )
 
 def quarkus_library(
