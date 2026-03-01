@@ -212,3 +212,5 @@ Created by **Luan B** ([@kinhluan](https://github.com/kinhluan))
 ---
 
 > **Note:** This project is not officially affiliated with Red Hat or the Quarkus project. It provides community-driven Bazel support for Quarkus applications.
+>
+> This is a restructured version of the original project at [tructxn/rule-quarkus](https://github.com/tructxn/rule-quarkus).
