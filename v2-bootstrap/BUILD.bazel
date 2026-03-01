@@ -1,5 +1,0 @@
-# Root BUILD file for v2-bootstrap
-
-exports_files([
-    "MODULE.bazel",
-])

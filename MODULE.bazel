@@ -1,14 +1,12 @@
 """
-Bazel rules for Quarkus applications
+Bazel rules for building Quarkus applications with build-time augmentation.
 
-This module supports two approaches:
-- v1-custom: Custom augmentation (lightweight, educational)
-- v2-bootstrap: QuarkusBootstrap API (full features, production-ready)
+Uses the official QuarkusBootstrap API for full Quarkus feature support.
 """
 
 module(
     name = "rules_quarkus",
-    version = "0.2.0",
+    version = "0.1.0",
     compatibility_level = 1,
 )
 
@@ -39,7 +37,7 @@ maven.install(
         "io.quarkus.arc:arc-processor:%s" % QUARKUS_VERSION,
 
         # ===========================================
-        # Quarkus Bootstrap (for v2-bootstrap approach)
+        # Quarkus Bootstrap
         # ===========================================
         "io.quarkus:quarkus-bootstrap-core:%s" % QUARKUS_VERSION,
         "io.quarkus:quarkus-bootstrap-app-model:%s" % QUARKUS_VERSION,

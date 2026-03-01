@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Java 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+
+    - name: Cache Bazel
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/bazel
+          ~/.cache/bazelisk
+        key: ${{ runner.os }}-bazel-${{ hashFiles('**/MODULE.bazel', '**/BUILD.bazel') }}
+        restore-keys: |
+          ${{ runner.os }}-bazel-
+
+    - name: Build hello-world example
+      run: bazel build //examples/hello-world:hello-world-lib
+
+    - name: Build all targets
+      run: bazel build //...
+
+    - name: Test hello-world library
+      run: bazel test //examples/hello-world:hello-world-lib

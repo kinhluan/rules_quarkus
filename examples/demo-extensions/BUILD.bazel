@@ -1,0 +1,62 @@
+load("//quarkus:quarkus.bzl", "quarkus_application")
+
+quarkus_application(
+    name = "demo-extensions",
+    srcs = glob(["src/main/java/**/*.java"]),
+    resources = glob(["src/main/resources/**/*"]),
+
+    # Compile-time dependencies (APIs only)
+    deps = [
+        # Jakarta APIs
+        "@maven//:jakarta_enterprise_jakarta_enterprise_cdi_api",
+        "@maven//:jakarta_inject_jakarta_inject_api",
+        "@maven//:jakarta_ws_rs_jakarta_ws_rs_api",
+        "@maven//:jakarta_annotation_jakarta_annotation_api",
+
+        # Quarkus Core
+        "@maven//:io_quarkus_quarkus_core",
+
+        # Mutiny API
+        "@maven//:io_smallrye_reactive_mutiny",
+
+        # Health API
+        "@maven//:org_eclipse_microprofile_health_microprofile_health_api",
+
+        # Jackson for JSON
+        "@maven//:com_fasterxml_jackson_core_jackson_databind",
+        "@maven//:com_fasterxml_jackson_core_jackson_annotations",
+    ],
+
+    # Runtime extensions - simplified (no messaging to avoid connection issues)
+    runtime_extensions = [
+        # Tier 1: Core
+        "@maven//:io_quarkus_quarkus_arc",
+        "@maven//:io_quarkus_quarkus_rest",
+        "@maven//:io_quarkus_quarkus_rest_jackson",
+        "@maven//:io_quarkus_quarkus_mutiny",
+        "@maven//:io_quarkus_quarkus_vertx_http",
+
+        # Tier 4: Observability
+        "@maven//:io_quarkus_quarkus_smallrye_health",
+        "@maven//:io_quarkus_quarkus_micrometer_registry_prometheus",
+    ],
+
+    # Deployment extensions
+    deployment_extensions = [
+        # Tier 1: Core
+        "@maven//:io_quarkus_quarkus_arc_deployment",
+        "@maven//:io_quarkus_quarkus_rest_deployment",
+        "@maven//:io_quarkus_quarkus_rest_jackson_deployment",
+        "@maven//:io_quarkus_quarkus_mutiny_deployment",
+        "@maven//:io_quarkus_quarkus_vertx_http_deployment",
+
+        # Tier 4: Observability
+        "@maven//:io_quarkus_quarkus_smallrye_health_deployment",
+        "@maven//:io_quarkus_quarkus_micrometer_registry_prometheus_deployment",
+    ],
+
+    jvm_flags = [
+        "-Xmx512m",
+        "-Djava.util.logging.manager=org.jboss.logmanager.LogManager",
+    ],
+)

@@ -1,7 +1,8 @@
 # Bazel
-bazel-*
+/bazel-*
 .bazel
 .bazeliskrc
+MODULE.bazel.lock
 
 # Java
 *.class
@@ -12,6 +13,7 @@ bazel-*
 
 # IDE
 .idea/
+.ijwb/
 *.iml
 .vscode/
 .DS_Store

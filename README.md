@@ -1,192 +1,214 @@
-# Quarkus Bazel Rules
+# rules_quarkus — Bazel Rules for Quarkus Applications
 
-Bazel rules for building Quarkus applications with build-time augmentation.
+[![CI](https://github.com/kinhluan/rules_quarkus/actions/workflows/ci.yml/badge.svg)](https://github.com/kinhluan/rules_quarkus/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-## Version
+Bazel rules for building Quarkus applications with build-time augmentation support.
 
-| Component | Version |
-|-----------|---------|
-| Quarkus | 3.20.1 |
-| Bazel | 7.x+ |
-| Java | 21 |
+## Overview
 
-## Two Approaches
+`rules_quarkus` provides native Bazel support for building Quarkus applications, filling the gap where no official Bazel rules exist for the Quarkus framework. The project implements Quarkus's unique build-time augmentation process within Bazel's build system, enabling developers to use Bazel's powerful dependency management and caching while maintaining full Quarkus functionality.
 
-| Approach | Directory | Status | Use Case |
-|----------|-----------|--------|----------|
-| **v1-custom** | `v1-custom/` | Compiles, CDI limited | Educational, lightweight |
-| **v2-bootstrap** | `v2-bootstrap/` | ✅ **Fully Working** | Production, full features |
+## Quick Start
 
----
+### Installation
 
-## Quick Start (v2-bootstrap - Recommended)
-
-```bash
-# Build the application
-bazel build //v2-bootstrap/examples/hello-world:hello-world
-
-# Run the application
-bazel-bin/v2-bootstrap/examples/hello-world/hello-world
-
-# Test HTTP endpoints (in another terminal)
-curl http://localhost:8080/hello
-# Output: Hello from Quarkus (built with Bazel)!
-```
-
-### Demo Extensions (Full Featured)
-
-```bash
-# Build demo with all extensions
-bazel build //v2-bootstrap/examples/demo-extensions:demo-extensions
-
-# Run
-bazel-bin/v2-bootstrap/examples/demo-extensions/demo-extensions
-
-# Test endpoints
-curl http://localhost:8080/              # All endpoints
-curl http://localhost:8080/api/users     # REST + Jackson
-curl http://localhost:8080/q/health      # Health checks
-curl http://localhost:8080/q/metrics     # Prometheus metrics
-```
-
----
-
-## Supported Extensions (5 Tiers)
-
-### Tier 1: Core
-- `quarkus-arc` - CDI implementation
-- `quarkus-vertx-http` - HTTP server
-- `quarkus-mutiny` - Reactive programming
-- `quarkus-rest-jackson` - REST + JSON
-
-### Tier 2: Database
-- `quarkus-reactive-oracle-client`
-- `quarkus-reactive-mysql-client`
-- `quarkus-redis-client`
-
-### Tier 3: Messaging
-- `quarkus-messaging-kafka`
-- `quarkus-messaging-rabbitmq`
-- `quarkus-grpc`
-
-### Tier 4: Observability
-- `quarkus-micrometer-registry-prometheus`
-- `quarkus-smallrye-health`
-
-### Tier 5: Quarkiverse
-- `quarkus-unleash` (1.10.0)
-- `quarkus-langchain4j-core/openai/ollama` (0.26.1)
-- `quarkus-tika` (2.1.0)
-
----
-
-## v2-bootstrap (Production) ✅
-
-Uses official `QuarkusBootstrap` API for full Quarkus feature support.
-
-### Features
-- ✅ Full CDI/ArC support
-- ✅ REST endpoints (JAX-RS) with Jackson
-- ✅ HTTP server (Vert.x + Netty)
-- ✅ Reactive programming (Mutiny)
-- ✅ Health checks & Metrics
-- ✅ Quarkiverse extensions (LangChain4j, etc.)
-- ✅ Same output as Maven build
-
-### Creating a New Application
+Add the following to your `MODULE.bazel`:
 
 ```python
-# BUILD.bazel
-load("//v2-bootstrap/rules:quarkus.bzl", "quarkus_application")
+bazel_dep(name = "rules_quarkus", version = "0.1.0")
+
+# Add Quarkus dependencies
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+maven.install(
+    name = "maven",
+    artifacts = [
+        "io.quarkus:quarkus-arc:3.20.1",
+        "io.quarkus:quarkus-rest:3.20.1",
+        "io.quarkus:quarkus-vertx-http:3.20.1",
+        "jakarta.ws.rs:jakarta.ws.rs-api:4.0.0",
+        # ... add more dependencies as needed
+    ],
+)
+```
+
+### Basic Usage
+
+Create a `BUILD.bazel` file:
+
+```python
+load("//quarkus:quarkus.bzl", "quarkus_application")
 
 quarkus_application(
     name = "my-app",
     srcs = glob(["src/main/java/**/*.java"]),
     resources = glob(["src/main/resources/**/*"]),
 
+    # Regular dependencies (APIs)
     deps = [
-        "@maven//:io_quarkus_quarkus_core",
-        "@maven//:jakarta_enterprise_jakarta_enterprise_cdi_api",
-        "@maven//:jakarta_inject_jakarta_inject_api",
         "@maven//:jakarta_ws_rs_jakarta_ws_rs_api",
+        "@maven//:jakarta_enterprise_jakarta_enterprise_cdi_api",
     ],
 
+    # Quarkus runtime extensions
     runtime_extensions = [
         "@maven//:io_quarkus_quarkus_arc",
         "@maven//:io_quarkus_quarkus_rest",
-        "@maven//:io_quarkus_quarkus_rest_jackson",
         "@maven//:io_quarkus_quarkus_vertx_http",
-        "@maven//:io_quarkus_quarkus_smallrye_health",
     ],
 
+    # Quarkus deployment modules (for build-time processing)
     deployment_extensions = [
         "@maven//:io_quarkus_quarkus_arc_deployment",
         "@maven//:io_quarkus_quarkus_rest_deployment",
-        "@maven//:io_quarkus_quarkus_rest_jackson_deployment",
         "@maven//:io_quarkus_quarkus_vertx_http_deployment",
-        "@maven//:io_quarkus_quarkus_smallrye_health_deployment",
-    ],
-
-    jvm_flags = [
-        "-Xmx512m",
-        "-Djava.util.logging.manager=org.jboss.logmanager.LogManager",
     ],
 )
 ```
 
----
-
-## v1-custom (Educational)
-
-Custom implementation of Quarkus augmentation. Manually implements Jandex indexing, annotation discovery, and bytecode generation.
+Build and run:
 
 ```bash
-# Build
-bazel build //v1-custom/examples/hello-world:hello-world
+# Build the application
+bazel build //:my-app
 
-# Run (Note: CDI not fully working)
-bazel run //v1-custom/examples/hello-world:hello-world
+# Run the application
+./bazel-bin/my-app/my-app
+
+# Access your endpoints
+curl http://localhost:8080/hello
 ```
 
-**Limitations:** CDI runtime not fully working (ArC processor not integrated)
+## Supported Extensions
 
----
+`rules_quarkus` supports a wide range of Quarkus extensions organized in 5 tiers:
 
-## Project Structure
+### Tier 1: Core (Essential)
+| Extension | Description |
+|-----------|-------------|
+| `quarkus-arc` | CDI dependency injection |
+| `quarkus-rest` | RESTful web services |
+| `quarkus-rest-jackson` | JSON serialization |
+| `quarkus-vertx-http` | HTTP server |
+| `quarkus-mutiny` | Reactive programming |
+
+### Tier 2: Database (Reactive)
+| Extension | Description |
+|-----------|-------------|
+| `quarkus-reactive-oracle-client` | Reactive Oracle database client |
+| `quarkus-reactive-mysql-client` | Reactive MySQL database client |
+| `quarkus-redis-client` | Redis client |
+
+### Tier 3: Messaging
+| Extension | Description |
+|-----------|-------------|
+| `quarkus-messaging-kafka` | Apache Kafka messaging |
+| `quarkus-messaging-rabbitmq` | RabbitMQ messaging |
+| `quarkus-grpc` | gRPC services |
+
+### Tier 4: Observability
+| Extension | Description |
+|-----------|-------------|
+| `quarkus-micrometer-registry-prometheus` | Prometheus metrics |
+| `quarkus-smallrye-health` | Health checks |
+
+### Tier 5: Quarkiverse
+| Extension | Description | Version |
+|-----------|-------------|---------|
+| `quarkus-unleash` | Feature flags | 1.10.0 |
+| `quarkus-langchain4j-*` | AI/LLM integration | 0.26.1 |
+| `quarkus-tika` | Content analysis | 2.1.0 |
+
+## Architecture
+
+`rules_quarkus` implements Quarkus's three-layer build architecture in Bazel:
 
 ```
-rules_quarkus/
-├── MODULE.bazel              # Shared Maven dependencies (Quarkus 3.20.1)
-├── CLAUDE.md                 # Detailed documentation
-│
-├── docs/                     # Documentation
-│   └── USAGE_GUIDE.md        # Hướng dẫn tích hợp
-│
-├── v1-custom/                # Approach 1: Custom augmentation
-│   ├── rules/                # Starlark rules
-│   ├── tools/                # Java augmentation tools
-│   └── examples/hello-world/
-│
-└── v2-bootstrap/             # Approach 2: QuarkusBootstrap API ✅
-    ├── rules/                # Starlark rules
-    ├── tools/                # Bootstrap tools
-    ├── PLAN.md               # Technical details
-    └── examples/
-        ├── hello-world/      # Basic REST example
-        └── demo-extensions/  # Full extensions demo
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Layer 1:      │    │   Layer 2:      │    │   Layer 3:      │
+│   Compile       │───▶│   Augment       │───▶│   Runtime       │
+│                 │    │                 │    │                 │
+│ java_library    │    │ QuarkusBootstrap│    │ Executable      │
+│ Standard        │    │ Build-time      │    │ Application     │
+│ compilation     │    │ processing      │    │ with CDI, etc.  │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
----
+### Layer 1: Compile
+Standard Java compilation using Bazel's `java_library`. Source files are compiled to bytecode with minimal processing.
 
-## Documentation
+### Layer 2: Augment
+Quarkus build-time augmentation using the official QuarkusBootstrap API:
+- Jandex bytecode indexing
+- CDI proxy generation
+- Configuration processing
+- Extension discovery
+- Optimized bytecode generation
 
-- **[docs/USAGE_GUIDE.md](docs/USAGE_GUIDE.md)** - Hướng dẫn tích hợp vào project của bạn
-- **[CLAUDE.md](CLAUDE.md)** - Detailed usage guide and troubleshooting
-- **[v2-bootstrap/README.md](v2-bootstrap/README.md)** - v2-bootstrap documentation
-- **[v2-bootstrap/PLAN.md](v2-bootstrap/PLAN.md)** - Technical implementation details
+### Layer 3: Runtime
+Executable application with fully processed Quarkus features:
+- Fast startup time
+- Low memory usage
+- Build-time optimizations applied
 
----
+## Requirements
+
+| Component | Version |
+|-----------|---------|
+| [Bazel](https://bazel.build/install) | 7.x+ |
+| [Java](https://adoptium.net/) | 21 |
+| [Quarkus](https://quarkus.io) | 3.20.1 |
+
+## Examples
+
+Explore the [`examples/`](examples/) directory for complete sample applications:
+
+- [`examples/hello-world/`](examples/hello-world/) - Basic REST API
+- [`examples/demo-extensions/`](examples/demo-extensions/) - Multi-tier extensions showcase
+
+## Macros and Rules
+
+### `quarkus_application`
+
+Main macro for building Quarkus applications.
+
+**Parameters:**
+- `name`: Application name
+- `srcs`: Java source files
+- `resources`: Application resources (application.properties, etc.)
+- `deps`: Regular dependencies (non-Quarkus libraries)
+- `runtime_extensions`: Quarkus runtime extension modules
+- `deployment_extensions`: Quarkus deployment modules
+- `jvm_flags`: JVM flags for running the application
+
+### `quarkus_library`
+
+Creates a library that can be used as a dependency for Quarkus applications.
+
+**Parameters:**
+- `name`: Library name
+- `srcs`: Java source files
+- `resources`: Resources
+- `deps`: Dependencies
+- `extensions`: Quarkus extensions used by this library
+
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
+
+- Setting up the development environment
+- Building and testing changes
+- Submitting pull requests
+- Reporting issues
 
 ## License
 
-Apache 2.0
+Licensed under the [Apache License, Version 2.0](LICENSE).
+
+## Author
+
+Created by **Luan B** ([@kinhluan](https://github.com/kinhluan))
+
+---
+
+> **Note:** This project is not officially affiliated with Red Hat or the Quarkus project. It provides community-driven Bazel support for Quarkus applications.
