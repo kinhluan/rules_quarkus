@@ -49,8 +49,8 @@ public class ApplicationModelFactory {
             extensionArtifactIds.add(ext.getArtifactId());
         }
 
-        // 4. Add runtime dependencies (cả runtime và deployment)
-        // Quarkus cần thấy TẤT CẢ JARs trong model
+        // 4. Add runtime and deployment dependencies
+        // Quarkus needs all JARs in the model
         System.out.println("  Adding dependencies:");
         addAllDependencies(builder, config.getRuntimeJars(), config.getDeploymentJars(), extensionArtifactIds);
 
@@ -65,7 +65,9 @@ public class ApplicationModelFactory {
             .setType("jar");
 
         if (!config.getApplicationJars().isEmpty()) {
-            appBuilder.setResolvedPaths(PathList.from(config.getApplicationJars()));
+            appBuilder.setResolvedPaths(PathList.from(config.getApplicationJars().stream()
+                .map(Path::toAbsolutePath)
+                .collect(java.util.stream.Collectors.toList())));
         }
 
         builder.setAppArtifact(appBuilder);
@@ -106,13 +108,8 @@ public class ApplicationModelFactory {
             }
             addedArtifacts.add(key);
 
-            // Runtime deps need RUNTIME_CP flag
-            int flags = DependencyFlags.RUNTIME_CP;
-
-            // If this JAR is also in deployment, add DEPLOYMENT_CP flag too
-            if (deploymentJarMap.containsKey(key)) {
-                flags |= DependencyFlags.DEPLOYMENT_CP;
-            }
+            // Runtime deps need RUNTIME_CP and DEPLOYMENT_CP flags to ensure indexing
+            int flags = DependencyFlags.RUNTIME_CP | DependencyFlags.DEPLOYMENT_CP;
 
             // Mark Quarkus extensions
             if (extensionArtifactIds.contains(coords.artifactId)) {
@@ -126,7 +123,7 @@ public class ApplicationModelFactory {
                 .setArtifactId(coords.artifactId)
                 .setVersion(coords.version)
                 .setType("jar")
-                .setResolvedPaths(PathList.of(jar))
+                .setResolvedPaths(PathList.of(jar.toAbsolutePath()))
                 .setFlags(flags));
 
             runtimeCount++;
@@ -153,7 +150,7 @@ public class ApplicationModelFactory {
                 .setArtifactId(coords.artifactId)
                 .setVersion(coords.version)
                 .setType("jar")
-                .setResolvedPaths(PathList.of(jar))
+                .setResolvedPaths(PathList.of(jar.toAbsolutePath()))
                 .setFlags(DependencyFlags.DEPLOYMENT_CP));
 
             deploymentCount++;

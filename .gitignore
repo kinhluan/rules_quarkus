@@ -27,3 +27,6 @@ dependency-reduced-pom.xml
 
 # Logs
 *.log
+UPGRADE_PLAN.md
+
+/.obsidian

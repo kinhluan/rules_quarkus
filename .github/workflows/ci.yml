@@ -7,8 +7,9 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
     - name: Checkout code
@@ -35,5 +36,21 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-bazel-
 
-    - name: Build hello-world library
-      run: bazel build //examples/hello-world:hello-world_lib
+    - name: Build Core Tools
+      run: bazel build //tools/...
+
+    - name: Build and Test Hello World Example
+      run: |
+        bazel build //examples/hello-world:hello-world
+        # Verify the executable exists
+        ls -l bazel-bin/examples/hello-world/hello-world.sh
+
+    - name: Build and Test Tiered Extensions Demo
+      run: |
+        # This is the most important test for classloader and tiered support
+        bazel build //examples/demo-extensions:demo-extensions
+        # Verify the executable exists
+        ls -l bazel-bin/examples/demo-extensions/demo-extensions.sh
+
+    - name: Test All Targets
+      run: bazel test //... --test_output=errors
