@@ -1,7 +1,10 @@
 ---
 title: "Architecting Deterministic Quarkus Builds: Native Support for Bazel"
 date: 2026-03-11
-author: "@kinhluan, @tructxn, @Nhannguyenus24"
+author:
+  - "@kinhluan"
+  - "@tructxn"
+  - "@Nhannguyenus24"
 category: Build Systems
 tags:
   - Bazel

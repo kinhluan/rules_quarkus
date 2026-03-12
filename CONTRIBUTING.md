@@ -60,7 +60,7 @@ We organize extension support into 5 Tiers. If you want to add a new extension:
 
 ## 📝 Development Workflow
 
-1.  **Check the Plan:** Review `UPGRADE_PLAN.md` to see current priorities and avoid duplicate work.
+1.  **Check Issues & Roadmap:** Review open issues and the project roadmap to see current priorities.
 2.  **Fork & Branch:** Use descriptive branch names like `feat/tier-3-kafka` or `fix/classloader-issue`.
 3.  **Surgical Changes:** We prefer targeted fixes. If you're refactoring core logic, please explain the "Why" in the PR.
 4.  **Testing is Mandatory:** Every PR must be verified against at least one example project. Provide the `bazel run` output in your PR description.
