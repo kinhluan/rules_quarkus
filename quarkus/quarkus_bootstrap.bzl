@@ -47,6 +47,9 @@ def _quarkus_bootstrap_impl(ctx):
 
     # Build command arguments
     args = ctx.actions.args()
+    args.use_param_file("@%s", use_always = False)  # Use param file if command is too long
+    args.set_param_file_format("multiline")
+
     args.add("--output-dir", output_dir.path)
     args.add("--app-name", ctx.attr.application_name)
 

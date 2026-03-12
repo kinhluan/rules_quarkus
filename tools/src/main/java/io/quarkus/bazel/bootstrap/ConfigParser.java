@@ -19,34 +19,36 @@ import java.util.List;
 public class ConfigParser {
 
     public static AugmentationConfig parse(String[] args) {
+        // Expand @filename arguments from Bazel param files
+        String[] expandedArgs = expandArgs(args);
         AugmentationConfig.Builder builder = AugmentationConfig.builder();
 
-        for (int i = 0; i < args.length; i++) {
-            String arg = args[i];
+        for (int i = 0; i < expandedArgs.length; i++) {
+            String arg = expandedArgs[i];
 
             switch (arg) {
                 case "--output-dir":
-                    builder.setOutputDir(Paths.get(args[++i]));
+                    builder.setOutputDir(Paths.get(expandedArgs[++i]));
                     break;
 
                 case "--application-jars":
-                    builder.addApplicationJars(parseJarList(args[++i]));
+                    builder.addApplicationJars(parseJarList(expandedArgs[++i]));
                     break;
 
                 case "--runtime-jars":
-                    builder.addRuntimeJars(parseJarList(args[++i]));
+                    builder.addRuntimeJars(parseJarList(expandedArgs[++i]));
                     break;
 
                 case "--deployment-jars":
-                    builder.addDeploymentJars(parseJarList(args[++i]));
+                    builder.addDeploymentJars(parseJarList(expandedArgs[++i]));
                     break;
 
                 case "--app-name":
-                    builder.setApplicationName(args[++i]);
+                    builder.setApplicationName(expandedArgs[++i]);
                     break;
 
                 case "--main-class":
-                    builder.setMainClass(args[++i]);
+                    builder.setMainClass(expandedArgs[++i]);
                     break;
 
                 default:
@@ -61,6 +63,27 @@ public class ConfigParser {
         }
 
         return builder.build();
+    }
+
+    /**
+     * Expands arguments starting with '@' by reading the file content.
+     */
+    private static String[] expandArgs(String[] args) {
+        List<String> expanded = new ArrayList<>();
+        for (String arg : args) {
+            if (arg.startsWith("@")) {
+                Path paramFile = Paths.get(arg.substring(1));
+                try {
+                    expanded.addAll(Files.readAllLines(paramFile));
+                } catch (IOException e) {
+                    System.err.println("Error reading param file: " + paramFile);
+                    e.printStackTrace();
+                }
+            } else {
+                expanded.add(arg);
+            }
+        }
+        return expanded.toArray(new String[0]);
     }
 
     private static void handleKeyValue(AugmentationConfig.Builder builder, String key, String value) {
