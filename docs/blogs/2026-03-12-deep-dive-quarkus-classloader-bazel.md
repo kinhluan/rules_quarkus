@@ -1,26 +1,21 @@
 ---
 title: "Deep Dive: Taming the Quarkus ClassLoader for Hermetic Bazel Builds"
 date: 2026-03-12
-author: "@kinhluan, @tructxn, @Nhannguyenus24"
-category: Engineering
-tags:
-  - JVM
-  - ClassLoader
-  - Bazel
-  - Quarkus
-  - Troubleshooting
+author: ["@kinhluan", "@tructxn", "@Nhannguyenus24"]
+tags: [JVM, ClassLoader, Bazel, Quarkus, Troubleshooting, DeepDive]
 status: Draft
 ---
 
 # Deep Dive: Taming the Quarkus ClassLoader for Hermetic Bazel Builds
 
-In our previous post, we announced the release of `rules_quarkus`. While the architecture looks clean on paper, the road to a functional Bazel implementation was blocked by one of the most notorious challenges in Java development: **ClassLoader Hell.**
-
-Today, we’re sharing the story of how we debugged a critical bottleneck in the Quarkus Bootstrap API - a journey that led us to [Quarkus Issue #52915](https://github.com/quarkusio/quarkus/issues/52915).
+> [!abstract] Overview
+> While the architecture for `rules_quarkus` looks clean on paper, the real-world implementation was blocked by one of the most notorious challenges in Java development: **ClassLoader Hell.**
+> 
+> This post explores how we debugged a critical bottleneck in the Quarkus Bootstrap API—a journey that led us to [Quarkus Issue #52915](https://github.com/quarkusio/quarkus/issues/52915).
 
 ---
 
-## The Symptom: The "Phantom" CDI Provider
+## 🔍 The Symptom: The "Phantom" CDI Provider
 
 When we first attempted to run the Quarkus augmentation process inside a Bazel sandbox, we were met with a baffling error:
 
@@ -28,28 +23,39 @@ When we first attempted to run the Quarkus augmentation process inside a Bazel s
 java.lang.IllegalStateException: Unable to locate CDIProvider
 ```
 
-Even though all JARs were present in the sandbox and the classpath was technically correct, Quarkus couldn't "see" its own internal components. We were caught in a classic V1 trap: treating Quarkus as a black box. 
+> [!warning] The V1 Trap
+> Even though all JARs were present in the sandbox and the classpath was technically correct, Quarkus couldn't "see" its own internal components. We were caught in a classic trap: treating Quarkus as a black box. 
 
 The standard `QuarkusBootstrap` entry points assumed they were running within the cozy, pre-configured environments of Maven or Gradle. In the stark, isolated world of a Bazel sandbox, these assumptions shattered.
 
 ---
 
-## The Culprit: `CuratedApplication` ClassLoader Mismatch
+## 🧬 The Culprit: `CuratedApplication` ClassLoader Mismatch
 
-As we went deeper into the `QuarkusBootstrap` internals, we identified a fundamental friction point. 
+As we went deeper into the `QuarkusBootstrap` internals, we identified a fundamental friction point in the ClassLoader hierarchy:
+
+```mermaid
+graph TD
+    A[Bazel Tool ClassLoader] -->|Loads| B(Quarkus Bootstrap API)
+    C[Augment ClassLoader] -->|Loads| D(AugmentActionImpl & Extensions)
+    B -.->|Mismatch| D
+    style B fill:#f96,stroke:#333
+    style D fill:#69f,stroke:#333
+```
 
 Quarkus uses a specialized **Augment ClassLoader** to isolate build-time extension logic from the application code. However, the official `CuratedApplication.createAugmentor()` method had a subtle, hardcoded behavior: it attempted to load the `AugmentActionImpl` using the classloader that loaded the `CuratedApplication` class itself.
 
-In a standalone Java tool (which is how Bazel executes the augmentation), this led to a **ClassCastException** or **ClassNotFoundException** because:
-1. The **Tool ClassLoader** (Bazel) had the Quarkus Bootstrap APIs.
-2. The **Augment ClassLoader** (Quarkus) had the actual implementation and extensions.
-3. They couldn't talk to each other because of different lineages.
+> [!bug] ClassLoader Conflict
+> In a standalone Java tool (Bazel's `bootstrap_augmentor`), this led to a **ClassCastException** or **ClassNotFoundException** because:
+> 1. The **Tool ClassLoader** (Bazel) had the Quarkus Bootstrap APIs.
+> 2. The **Augment ClassLoader** (Quarkus) had the actual implementation and extensions.
+> 3. They couldn't talk to each other because of different lineages.
 
 We documented this discovery in **[Quarkus Issue #52915](https://github.com/quarkusio/quarkus/issues/52915)**, highlighting that the current API was too tightly coupled to specific build tool behaviors.
 
 ---
 
-## The "Aha!" Moment: Manual Orchestration
+## 💡 The "Aha!" Moment: Manual Orchestration
 
 Since we couldn't wait for a framework-level fix to ship `rules_quarkus`, we had to engineer a "white-box" workaround. If the official API wouldn't give us the augmentor we needed, we would build it ourselves using reflection and precise ClassLoader orchestration.
 
@@ -62,15 +68,16 @@ ClassLoader augmentCl = curatedApp.getOrCreateAugmentClassLoader();
 ```
 
 ### 2. The TCCL Switch
-Quarkus (and its underlying ASM-based bytecode transformers) relies heavily on the **Thread Context ClassLoader (TCCL)** to resolve classes during frame computation. We had to manually bridge this:
-```java
-ClassLoader originalTccl = Thread.currentThread().getContextClassLoader();
-try {
-    Thread.currentThread().setContextClassLoader(augmentCl);
-} finally {
-    Thread.currentThread().setContextClassLoader(originalTccl);
-}
-```
+> [!tip] The Key Fix
+> Quarkus (and its underlying ASM-based bytecode transformers) relies heavily on the **Thread Context ClassLoader (TCCL)** to resolve classes during frame computation. We had to manually bridge this:
+> ```java
+> ClassLoader originalTccl = Thread.currentThread().getContextClassLoader();
+> try {
+>     Thread.currentThread().setContextClassLoader(augmentCl);
+> } finally {
+>     Thread.currentThread().setContextClassLoader(originalTccl);
+> }
+> ```
 
 ### 3. Reflective Instantiation
 We bypassed the broken `createAugmentor()` method and instantiated the implementation directly from the correct classloader:
@@ -82,18 +89,23 @@ AugmentAction augmentAction = (AugmentAction) ctor.newInstance(curatedApp);
 
 ---
 
-## Why this matters for Bazel
+## 🚀 Why this matters for Bazel
 
 By solving this ClassLoader puzzle, we achieved something that was previously thought to be "not worth the effort": **Native, hermetic Quarkus builds without Maven/Gradle wrapping.**
 
 This approach gives `rules_quarkus` users:
-*   **True Incrementalism:** Bazel now understands exactly which JARs affect the augmentation, preventing unnecessary re-builds.
-*   **Deterministic Outputs:** By controlling the TCCL and the augmentation environment, we ensure that the generated bytecode is identical across different machines.
-*   **Monorepo Scalability:** You can now build 100+ Quarkus microservices in a single command, leveraging Bazel's remote execution and caching without the overhead of nested build tools.
+- **True Incrementalism:** Bazel now understands exactly which JARs affect the augmentation, preventing unnecessary re-builds.
+- **Deterministic Outputs:** By controlling the TCCL and the augmentation environment, we ensure that the generated bytecode is identical across different machines.
+- **Monorepo Scalability:** You can now build 100+ Quarkus microservices in a single command, leveraging Bazel's remote execution and caching without the overhead of nested build tools.
 
-## Conclusion
+## 🏁 Conclusion
 
-Engineering `rules_quarkus` wasn't just about writing Starlark; it was about understanding the deep mechanics of the Quarkus lifecycle. Our journey through [Issue #52915](https://github.com/quarkusio/quarkus/issues/52915) is a testament to why we chose the "hard way" of native integration over the "easy way" of wrappers.
+Engineering `rules_quarkus` wasn't just about writing Starlark; it was about understanding the deep mechanics of the Quarkus lifecycle. Our journey through [Quarkus Issue #52915](https://github.com/quarkusio/quarkus/issues/52915) is a testament to why we chose the "hard way" of native integration over the "easy way" of wrappers.
+
+---
+**Related Links:**
+- [[2026-03-11-bazel-support-for-quarkus|Previous Post: Bazel Support for Quarkus]]
+- [[CONTRIBUTING|Contribution Guide]]
 
 ---
 *Follow the discussion and see the fix in action at [kinhluan/rules_quarkus](https://github.com/kinhluan/rules_quarkus)*
