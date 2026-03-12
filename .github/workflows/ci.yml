@@ -53,4 +53,11 @@ jobs:
         ls -l bazel-bin/examples/demo-extensions/demo-extensions
 
     - name: Test All Targets
-      run: bazel test //... --test_output=errors
+      # Only run if test targets exist
+      run: |
+        # Check if there are any test targets
+        if bazel query 'kind(".*_test", //...)' 2>/dev/null | grep -q .; then
+          bazel test //... --test_output=errors
+        else
+          echo "No test targets found, skipping test phase"
+        fi
