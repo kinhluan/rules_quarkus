@@ -25,8 +25,10 @@ def _quarkus_bootstrap_impl(ctx):
     application_jars = []
     for dep in ctx.attr.application:
         if JavaInfo in dep:
-            for output in dep[JavaInfo].outputs.jars:
-                application_jars.append(output.class_jar)
+            # Use java_outputs API instead of deprecated outputs.jars
+            for output in dep[JavaInfo].java_outputs:
+                if output.class_jar:
+                    application_jars.append(output.class_jar)
 
     # Collect runtime JARs (Quarkus extensions + regular deps)
     runtime_jars = []
@@ -45,6 +47,9 @@ def _quarkus_bootstrap_impl(ctx):
 
     # Build command arguments
     args = ctx.actions.args()
+    args.use_param_file("@%s", use_always = False)  # Use param file if command is too long
+    args.set_param_file_format("multiline")
+
     args.add("--output-dir", output_dir.path)
     args.add("--app-name", ctx.attr.application_name)
 

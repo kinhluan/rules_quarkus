@@ -7,6 +7,7 @@ Uses QuarkusBootstrap API for augmentation.
 
 load("@rules_java//java:defs.bzl", "java_binary", "java_library")
 load("//quarkus:quarkus_bootstrap.bzl", "quarkus_bootstrap")
+load("//quarkus:quarkus_runner.bzl", "quarkus_runner")
 
 def quarkus_application(
         name,
@@ -15,7 +16,7 @@ def quarkus_application(
         deps = [],
         runtime_extensions = [],
         deployment_extensions = [],
-        main_class = "io.quarkus.runner.GeneratedMain",
+        main_class = None,
         jvm_flags = [],
         visibility = None,
         tags = [],
@@ -37,7 +38,8 @@ def quarkus_application(
             e.g., @maven//:io_quarkus_quarkus_arc
         deployment_extensions: Quarkus deployment modules
             e.g., @maven//:io_quarkus_quarkus_arc_deployment
-        main_class: Main class (default: io.quarkus.runner.GeneratedMain)
+        main_class: Main class (required). Set to your @QuarkusMain class or the main class from pom.xml.
+            For standard Quarkus apps without custom @QuarkusMain, use "io.quarkus.runner.GeneratedMain"
         jvm_flags: JVM flags for running the application
         visibility: Target visibility
         tags: Build tags
@@ -59,8 +61,15 @@ def quarkus_application(
                 "@maven//:io_quarkus_quarkus_arc_deployment",
                 "@maven//:io_quarkus_quarkus_resteasy_reactive_deployment",
             ],
+            main_class = "io.quarkus.runner.GeneratedMain",
         )
     """
+
+    # Validate main_class is provided
+    if not main_class:
+        fail("main_class is required for quarkus_application. " +
+             "Set it to your @QuarkusMain class or the main class from pom.xml. " +
+             "For standard Quarkus apps without custom @QuarkusMain, use 'io.quarkus.runner.GeneratedMain'.")
 
     # ============================================================================
     # LAYER 1: COMPILATION
@@ -89,7 +98,7 @@ def quarkus_application(
     quarkus_bootstrap(
         name = augmented_name,
         application = [":" + lib_name],
-        runtime_deps = runtime_extensions,
+        runtime_deps = deps + runtime_extensions,
         deployment_deps = deployment_extensions,
         application_name = name,
         main_class = main_class,
@@ -102,45 +111,13 @@ def quarkus_application(
     # Create executable that runs the augmented application
     # ============================================================================
 
-    # For now, create a simple runner that uses the augmented output
-    # TODO: Create proper java_binary that uses quarkus-run.jar
-
-    # Generate runner script
-    runner_script = name + "_runner.sh"
-    native.genrule(
-        name = name + "_runner_script",
-        outs = [runner_script],
-        cmd = """
-cat > $@ << 'RUNNER_EOF'
-#!/bin/bash
-set -e
-SCRIPT_DIR="$$(cd "$$(dirname "$$0")" && pwd)"
-QUARKUS_APP="$$SCRIPT_DIR/{augmented}-quarkus-app"
-exec java {jvm_flags} \
-    -cp "$$QUARKUS_APP/lib/boot/*:$$QUARKUS_APP/lib/main/*:$$QUARKUS_APP/quarkus-run.jar" \
-    io.quarkus.bootstrap.runner.QuarkusEntryPoint "$$@"
-RUNNER_EOF
-chmod +x $@
-""".format(
-            augmented = augmented_name,
-            jvm_flags = " ".join(jvm_flags),
-        ),
-        tags = tags + ["manual"],
-        visibility = ["//visibility:private"],
-    )
-
-    # Executable target using native.filegroup + wrapper
-    native.genrule(
+    # Use quarkus_runner rule to create proper executable with runfiles support
+    quarkus_runner(
         name = name,
-        srcs = [
-            ":" + name + "_runner_script",
-            ":" + augmented_name,
-        ],
-        outs = [name + ".sh"],
-        cmd = "cp $(location :" + name + "_runner_script) $@",
-        executable = True,
-        visibility = visibility,
+        augmented_app = ":" + augmented_name,
+        jvm_flags = jvm_flags,
         tags = tags,
+        visibility = visibility,
     )
 
 def quarkus_library(

@@ -9,7 +9,6 @@ import io.quarkus.paths.PathList;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -49,8 +48,8 @@ public class ApplicationModelFactory {
             extensionArtifactIds.add(ext.getArtifactId());
         }
 
-        // 4. Add runtime dependencies (cả runtime và deployment)
-        // Quarkus cần thấy TẤT CẢ JARs trong model
+        // 4. Add runtime and deployment dependencies
+        // Quarkus needs all JARs in the model
         System.out.println("  Adding dependencies:");
         addAllDependencies(builder, config.getRuntimeJars(), config.getDeploymentJars(), extensionArtifactIds);
 
@@ -65,7 +64,9 @@ public class ApplicationModelFactory {
             .setType("jar");
 
         if (!config.getApplicationJars().isEmpty()) {
-            appBuilder.setResolvedPaths(PathList.from(config.getApplicationJars()));
+            appBuilder.setResolvedPaths(PathList.from(config.getApplicationJars().stream()
+                .map(Path::toAbsolutePath)
+                .collect(java.util.stream.Collectors.toList())));
         }
 
         builder.setAppArtifact(appBuilder);
@@ -76,23 +77,14 @@ public class ApplicationModelFactory {
                                            List<Path> deploymentJars,
                                            Set<String> extensionArtifactIds) {
 
-        // First, build a map of deployment JARs for quick lookup
-        Map<String, Path> deploymentJarMap = new java.util.HashMap<>();
-        for (Path jar : deploymentJars) {
-            MavenCoords coords = parseMavenCoords(jar);
-            if (coords != null) {
-                String key = coords.groupId + ":" + coords.artifactId;
-                deploymentJarMap.put(key, jar);
-            }
-        }
-
         // Track what we've already added to avoid duplicates
         Set<String> addedArtifacts = new HashSet<>();
         int runtimeCount = 0;
         int deploymentCount = 0;
         int extensionCount = 0;
 
-        // 1. Add runtime dependencies - if they're also in deployment, add BOTH flags
+        // 1. Add runtime dependencies with both RUNTIME_CP and DEPLOYMENT_CP flags
+        // This ensures the augmentation classloader can see all necessary types
         for (Path jar : runtimeJars) {
             MavenCoords coords = parseMavenCoords(jar);
             if (coords == null) {
@@ -106,13 +98,8 @@ public class ApplicationModelFactory {
             }
             addedArtifacts.add(key);
 
-            // Runtime deps need RUNTIME_CP flag
-            int flags = DependencyFlags.RUNTIME_CP;
-
-            // If this JAR is also in deployment, add DEPLOYMENT_CP flag too
-            if (deploymentJarMap.containsKey(key)) {
-                flags |= DependencyFlags.DEPLOYMENT_CP;
-            }
+            // Runtime deps need both flags for proper indexing
+            int flags = DependencyFlags.RUNTIME_CP | DependencyFlags.DEPLOYMENT_CP;
 
             // Mark Quarkus extensions
             if (extensionArtifactIds.contains(coords.artifactId)) {
@@ -126,7 +113,7 @@ public class ApplicationModelFactory {
                 .setArtifactId(coords.artifactId)
                 .setVersion(coords.version)
                 .setType("jar")
-                .setResolvedPaths(PathList.of(jar))
+                .setResolvedPaths(PathList.of(jar.toAbsolutePath()))
                 .setFlags(flags));
 
             runtimeCount++;
@@ -142,7 +129,7 @@ public class ApplicationModelFactory {
 
             String key = coords.groupId + ":" + coords.artifactId;
             if (addedArtifacts.contains(key)) {
-                // Already added as runtime (with DEPLOYMENT_CP flag if applicable), skip
+                // Already added as runtime, skip
                 continue;
             }
             addedArtifacts.add(key);
@@ -153,26 +140,13 @@ public class ApplicationModelFactory {
                 .setArtifactId(coords.artifactId)
                 .setVersion(coords.version)
                 .setType("jar")
-                .setResolvedPaths(PathList.of(jar))
+                .setResolvedPaths(PathList.of(jar.toAbsolutePath()))
                 .setFlags(DependencyFlags.DEPLOYMENT_CP));
 
             deploymentCount++;
         }
 
         System.out.println("    Added: runtime=" + runtimeCount + ", deployment-only=" + deploymentCount + ", extensions=" + extensionCount);
-
-        // Debug: print sample of runtime deps with flags
-        System.out.println("    Sample runtime deps (first 5):");
-        int sample = 0;
-        for (Path jar : runtimeJars) {
-            if (sample >= 5) break;
-            MavenCoords coords = parseMavenCoords(jar);
-            if (coords != null) {
-                System.out.println("      - " + coords.groupId + ":" + coords.artifactId + " flags=RUNTIME_CP" +
-                    (extensionArtifactIds.contains(coords.artifactId) ? "|EXTENSION" : ""));
-                sample++;
-            }
-        }
     }
 
     /**

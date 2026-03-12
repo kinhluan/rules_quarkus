@@ -1,0 +1,18 @@
+# GitHub CODEOWNERS file
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-codeowners
+
+# Global owners (responsible for everything)
+*       @kinhluan
+
+# Core Bazel Rules
+/quarkus/  @kinhluan
+
+# Java Bootstrap Tools (The Augmentation Engine)
+/tools/    @kinhluan
+
+# Examples and Documentation
+/examples/ @kinhluan
+/docs/     @kinhluan
+
+# CI/CD and GitHub Configurations
+/.github/  @kinhluan

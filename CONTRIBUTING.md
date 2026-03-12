@@ -1,81 +1,83 @@
 # Contributing to rules_quarkus
 
-Thank you for your interest in contributing to rules_quarkus! This document provides guidelines for contributing to the project.
+First off, thank you for considering contributing to `rules_quarkus`! We are on a mission to bring **Supersonic, Subatomic, Fast and Correct** builds to the Quarkus ecosystem.
 
-## Quick Start
+This project bridges the gap between the Quarkus build-time engine and Bazel's hermetic build system. Because of this unique intersection, contributions require an understanding of both worlds.
+
+---
+
+## 🛠 Quick Start
 
 ### Prerequisites
+- **Bazel 7.x+**: We use Bzlmod for dependency management.
+- **Java 21**: The project is optimized for modern LTS Java.
+- **Quarkus 3.20.x**: Our current target version.
 
-- [Bazel 7.x+](https://bazel.build/install)
-- [Java 21](https://adoptium.net/)
-
-### Building
-
-```bash
-# Build hello-world example
-bazel build //examples/hello-world:hello-world-lib
-
-# Build all targets
-bazel build //...
-```
-
-### Testing
+### Building & Testing
+We use our own `examples/` directory as the primary integration test suite.
 
 ```bash
-# Test hello-world example (compile only)
-bazel test //examples/hello-world:hello-world-lib
+# Build the core tools
+bazel build //tools/...
 
-# Run the application
-bazel build //examples/hello-world:hello-world
-./bazel-bin/examples/hello-world/hello-world
+# Run the Hello World example
+bazel run //examples/hello-world
+
+# Run the comprehensive Extensions Demo (Tier 1-5)
+bazel run //examples/demo-extensions
 ```
 
-## Development Guidelines
+---
 
-### Code Style
+## 🏗 Architecture Guide
 
-- Follow existing code conventions in .bzl files and Java code
-- Add documentation for new macros and rules
-- Update examples when adding new features
+When contributing code, please respect our **Three-Layer Architecture**. This separation is what ensures Bazel's hermeticity:
 
-### Testing Changes
+1.  **Layer 1: Compile (`java_library`)**
+    *   Standard bytecode compilation.
+    *   No Quarkus magic here, just pure `javac`.
+2.  **Layer 2: Augment (`quarkus_bootstrap`)**
+    *   The "Heavy Lifting". Uses the official `QuarkusBootstrap` API.
+    *   Generates CDI proxies, Jandex indexes, and optimized bytecode.
+    *   *Where to look:* `quarkus/quarkus_bootstrap.bzl` and `tools/src/main/java/io/quarkus/bazel/bootstrap/`.
+3.  **Layer 3: Runtime (`quarkus_runner`)**
+    *   Resolves the `quarkus-app` structure from Bazel `runfiles`.
+    *   Launches the app via `QuarkusEntryPoint`.
+    *   *Where to look:* `quarkus/quarkus_runner.bzl`.
 
-Before submitting a PR:
+---
 
-1. Verify examples build and run correctly
-2. Test with different Quarkus extensions
-3. Run `bazel build //...` to ensure no build breakage
+## 📦 Adding Support for New Extensions
 
-## Submitting PRs
+We organize extension support into 5 Tiers. If you want to add a new extension:
 
-1. Fork the repository
-2. Create a feature branch from `main`
-3. Make your changes with clear commit messages
-4. Test your changes thoroughly
-5. Submit a pull request with:
-   - Clear description of changes
-   - Testing evidence (build output, screenshots)
-   - Reference to any related issues
+1.  **Check the Tier:** Does it fit into Database (Tier 2), Messaging (Tier 3), or Quarkiverse (Tier 5)?
+2.  **Update `MODULE.bazel`:** Add both the `runtime` and `deployment` artifacts to the `maven.install` section.
+3.  **Add to `examples/demo-extensions`:** Create a simple endpoint in the demo app to verify the extension works under Bazel's classloader.
+4.  **Verify Transitive Deps:** Quarkus deployment modules often have complex transitive dependencies. Use `exclusions` in `MODULE.bazel` if you encounter circular dependency errors.
 
-## Reporting Issues
+---
 
-When reporting issues, please include:
+## 📝 Development Workflow
 
-- Bazel version (`bazel version`)
-- Java version (`java -version`)
-- Minimal reproduction case
-- Build logs and error messages
+1.  **Check Issues & Roadmap:** Review open issues and the project roadmap to see current priorities.
+2.  **Fork & Branch:** Use descriptive branch names like `feat/tier-3-kafka` or `fix/classloader-issue`.
+3.  **Surgical Changes:** We prefer targeted fixes. If you're refactoring core logic, please explain the "Why" in the PR.
+4.  **Testing is Mandatory:** Every PR must be verified against at least one example project. Provide the `bazel run` output in your PR description.
 
-## Architecture
+---
 
-The project uses a three-layer architecture:
+## 🤝 Submitting Pull Requests
 
-1. **Compile**: Standard `java_library` compilation
-2. **Augment**: QuarkusBootstrap API for build-time processing
-3. **Runtime**: Executable application with augmented classes
+*   **Commit Messages:** Use clear, imperative titles (e.g., "Add support for Redis reactive client").
+*   **PR Template:**
+    *   **Goal:** What problem does this solve?
+    *   **Technical Approach:** How did you implement it? (Especially if you modified the `BootstrapAugmentor`).
+    *   **Verification:** Show us that `bazel run //examples/...` works.
 
-See `docs/PLAN.md` for detailed technical information.
+## ⚖️ License
 
-## License
+By contributing, you agree that your contributions will be licensed under the **Apache License, Version 2.0**.
 
-By contributing, you agree that your contributions will be licensed under the Apache 2.0 License.
+---
+*Stay Supersonic.*

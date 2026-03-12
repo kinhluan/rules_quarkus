@@ -34,6 +34,10 @@ quarkus_application(
         "@maven//:io_quarkus_quarkus_vertx_http_deployment",
     ],
 
+    # Main class (required)
+    # For standard Quarkus apps without custom @QuarkusMain, use GeneratedMain
+    main_class = "io.quarkus.runner.GeneratedMain",
+
     # JVM flags for running
     jvm_flags = [
         "-Xmx512m",

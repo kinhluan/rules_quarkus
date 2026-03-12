@@ -55,6 +55,10 @@ quarkus_application(
         "@maven//:io_quarkus_quarkus_micrometer_registry_prometheus_deployment",
     ],
 
+    # Main class (required)
+    # For standard Quarkus apps without custom @QuarkusMain, use GeneratedMain
+    main_class = "io.quarkus.runner.GeneratedMain",
+
     jvm_flags = [
         "-Xmx512m",
         "-Djava.util.logging.manager=org.jboss.logmanager.LogManager",

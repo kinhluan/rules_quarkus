@@ -63,6 +63,9 @@ quarkus_application(
         "@maven//:io_quarkus_quarkus_rest_deployment",
         "@maven//:io_quarkus_quarkus_vertx_http_deployment",
     ],
+
+    # Main class (required)
+    main_class = "io.quarkus.runner.GeneratedMain",
 )
 ```
 
@@ -161,10 +164,21 @@ Executable application with fully processed Quarkus features:
 
 ## Examples
 
-Explore the [`examples/`](examples/) directory for complete sample applications:
+We provide several example applications to help you get started with `rules_quarkus`:
 
-- [`examples/hello-world/`](examples/hello-world/) - Basic REST API
-- [`examples/demo-extensions/`](examples/demo-extensions/) - Multi-tier extensions showcase
+### 🚀 Hello World
+A minimal "Supersonic Subatomic" REST API showing the basic setup.
+- **Location:** [`examples/hello-world/`](examples/hello-world/)
+- **Build:** `bazel build //examples/hello-world:hello-world`
+- **Run:** `./bazel-bin/examples/hello-world/hello-world`
+
+### 🏗️ Demo Extensions Showcase
+A comprehensive example demonstrating multi-tier extensions (REST, Jackson, Mutiny, Health, and Metrics).
+- **Location:** [`examples/demo-extensions/`](examples/demo-extensions/)
+- **Build:** `bazel build //examples/demo-extensions:demo-extensions`
+- **Run:** `./bazel-bin/examples/demo-extensions/demo-extensions`
+
+---
 
 ## Macros and Rules
 
@@ -173,12 +187,13 @@ Explore the [`examples/`](examples/) directory for complete sample applications:
 Main macro for building Quarkus applications.
 
 **Parameters:**
-- `name`: Application name
+- `name`: Application name (Required)
 - `srcs`: Java source files
 - `resources`: Application resources (application.properties, etc.)
 - `deps`: Regular dependencies (non-Quarkus libraries)
 - `runtime_extensions`: Quarkus runtime extension modules
 - `deployment_extensions`: Quarkus deployment modules
+- `main_class`: **Required**. Set to your `@QuarkusMain` class or the main class from `pom.xml`. Use `"io.quarkus.runner.GeneratedMain"` for standard applications.
 - `jvm_flags`: JVM flags for running the application
 
 ### `quarkus_library`
@@ -191,6 +206,11 @@ Creates a library that can be used as a dependency for Quarkus applications.
 - `resources`: Resources
 - `deps`: Dependencies
 - `extensions`: Quarkus extensions used by this library
+
+## Resources
+
+- [Architecting Deterministic Quarkus Builds: Native Support for Bazel](docs/blogs/2026-03-11-bazel-support-for-quarkus.md) — An in-depth look at the architecture and motivation behind `rules_quarkus`.
+- [Deep Dive: Taming the Quarkus ClassLoader for Hermetic Bazel Builds](docs/blogs/2026-03-12-deep-dive-quarkus-classloader-bazel.md) — The technical journey of solving ClassLoader challenges and Quarkus Issue #52915.
 
 ## Contributing
 
@@ -205,12 +225,15 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 Licensed under the [Apache License, Version 2.0](LICENSE).
 
-## Author
+## Authors
 
-Created by **Luan B** ([@kinhluan](https://github.com/kinhluan))
+Created and maintained by:
+- [@kinhluan](https://github.com/kinhluan)
+- [@tructxn](https://github.com/tructxn)
+- [@Nhannguyenus24](https://github.com/Nhannguyenus24)
 
 ---
 
-> **Note:** This project is not officially affiliated with Red Hat or the Quarkus project. It provides community-driven Bazel support for Quarkus applications.
+> **Note:** This project is a community-driven effort and is not officially affiliated with Red Hat or the Quarkus project.
 >
-> This is a restructured version of the original project at [tructxn/rule-quarkus](https://github.com/tructxn/rule-quarkus).
+> This project is an evolution of the work originally started at [tructxn/rule-quarkus](https://github.com/tructxn/rule-quarkus).

@@ -6,7 +6,7 @@ Uses the official QuarkusBootstrap API for full Quarkus feature support.
 
 module(
     name = "rules_quarkus",
-    version = "0.1.0",
+    version = "0.1.1",
     compatibility_level = 1,
 )
 
