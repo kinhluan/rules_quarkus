@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Configuration for Quarkus augmentation.
@@ -20,16 +21,18 @@ import java.util.List;
 public class AugmentationConfig {
 
     private final List<Path> applicationJars;
-    private final List<Path> runtimeJars;
+    private List<Path> runtimeJars;
     private final List<Path> deploymentJars;
     private final Path outputDir;
     private final String applicationName;
     private final String mainClass;
 
     private AugmentationConfig(Builder builder) {
-        this.applicationJars = Collections.unmodifiableList(new ArrayList<>(builder.applicationJars));
-        this.runtimeJars = Collections.unmodifiableList(new ArrayList<>(builder.runtimeJars));
-        this.deploymentJars = Collections.unmodifiableList(new ArrayList<>(builder.deploymentJars));
+        // List.copyOf creates an immutable list in one step, avoiding the intermediate
+        // ArrayList that Collections.unmodifiableList(new ArrayList<>(...)) would allocate.
+        this.applicationJars = List.copyOf(builder.applicationJars);
+        this.runtimeJars = List.copyOf(builder.runtimeJars);
+        this.deploymentJars = List.copyOf(builder.deploymentJars);
         this.outputDir = builder.outputDir;
         this.applicationName = builder.applicationName;
         this.mainClass = builder.mainClass;
@@ -67,13 +70,15 @@ public class AugmentationConfig {
     }
 
     /**
-     * Get all runtime classpath JARs (application + runtime deps).
+     * Replace specific runtime JAR paths with staged alternatives.
+     * Used to resolve filename collisions for Bazel-built JARs.
      */
-    public List<Path> getRuntimeClasspath() {
-        List<Path> classpath = new ArrayList<>();
-        classpath.addAll(applicationJars);
-        classpath.addAll(runtimeJars);
-        return classpath;
+    public void replaceRuntimeJarPaths(Map<Path, Path> replacements) {
+        List<Path> updated = new ArrayList<>(runtimeJars.size());
+        for (Path jar : runtimeJars) {
+            updated.add(replacements.getOrDefault(jar, jar));
+        }
+        this.runtimeJars = Collections.unmodifiableList(updated);
     }
 
     public static Builder builder() {
@@ -86,7 +91,7 @@ public class AugmentationConfig {
         private List<Path> deploymentJars = new ArrayList<>();
         private Path outputDir;
         private String applicationName = "application";
-        private String mainClass = "io.quarkus.runner.GeneratedMain";
+        private String mainClass;
 
         public Builder addApplicationJar(Path jar) {
             this.applicationJars.add(jar);
@@ -136,6 +141,11 @@ public class AugmentationConfig {
         public AugmentationConfig build() {
             if (outputDir == null) {
                 throw new IllegalStateException("outputDir is required");
+            }
+            if (mainClass == null || mainClass.isEmpty()) {
+                throw new IllegalStateException(
+                    "mainClass is required. Set --main-class to the service's main class " +
+                    "(matching quarkus.package.main-class from pom.xml).");
             }
             return new AugmentationConfig(this);
         }

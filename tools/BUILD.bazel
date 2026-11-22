@@ -1,48 +1,40 @@
 """
-Quarkus Bootstrap Tools (Approach 2)
+Quarkus Bootstrap Tools
 
 Build tools for running Quarkus augmentation using QuarkusBootstrap API.
 """
 
 load("@rules_java//java:defs.bzl", "java_binary", "java_library")
 
-# Main augmentor tool
-java_binary(
-    name = "bootstrap_augmentor",
-    srcs = glob(["src/main/java/**/*.java"]),
-    main_class = "io.quarkus.bazel.bootstrap.BootstrapAugmentor",
-    visibility = ["//visibility:public"],
-    deps = [
-        # Quarkus Bootstrap Core
-        "@maven//:io_quarkus_quarkus_bootstrap_core",
-        "@maven//:io_quarkus_quarkus_bootstrap_app_model",
-
-        # Quarkus Core
-        "@maven//:io_quarkus_quarkus_core",
-
-        # Logging
-        "@maven//:org_jboss_logging_jboss_logging",
-
-        # ArC runtime (needed for ASM class loading during augmentation)
-        "@maven//:io_quarkus_arc_arc",
-
-        # Core deployment (contains AugmentActionImpl)
-        "@maven//:io_quarkus_quarkus_core_deployment",
-
-        # ArC deployment (for build steps)
-        "@maven//:io_quarkus_quarkus_arc_deployment",
-    ],
-)
-
-# Library for use by other tools
+# Augmentor sources, compiled once and shared by the binary and the tests.
+#
+# These deps ARE the tool's system classpath during augmentation, so don't add jars here
+# casually: any jar that is both here and in the ApplicationModel ends up on both the system
+# CL and the augment CL (QuarkusClassLoader delegates child-first) -> class identity clashes.
+# See SYSTEM_CL_ARTIFACTS in ApplicationModelFactory.
 java_library(
     name = "bootstrap_lib",
     srcs = glob(["src/main/java/**/*.java"]),
     visibility = ["//visibility:public"],
     deps = [
-        "@maven//:io_quarkus_quarkus_bootstrap_core",
         "@maven//:io_quarkus_quarkus_bootstrap_app_model",
-        "@maven//:io_quarkus_quarkus_core",
+        "@maven//:io_quarkus_quarkus_bootstrap_core",
         "@maven//:org_jboss_logging_jboss_logging",
     ],
 )
+
+# Main augmentor tool. Runs as a Bazel persistent worker (see quarkus_bootstrap.bzl).
+java_binary(
+    name = "bootstrap_augmentor",
+    jvm_flags = [
+        # An augmentation is only a few seconds of work: not long enough for C2 to pay back
+        # its compile cost.
+        "-XX:TieredStopAtLevel=1",
+    ],
+    main_class = "io.quarkus.bazel.bootstrap.BootstrapAugmentor",
+    visibility = ["//visibility:public"],
+    runtime_deps = [":bootstrap_lib"],
+)
+
+# Tests live in //tools/src/test (separate package: contrib_rules_jvm is a dev_dependency,
+# so it must not be loaded from a package that users of this module load).

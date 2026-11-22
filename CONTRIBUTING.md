@@ -11,7 +11,7 @@ This project bridges the gap between the Quarkus build-time engine and Bazel's h
 ### Prerequisites
 - **Bazel 7.x+**: We use Bzlmod for dependency management.
 - **Java 21**: The project is optimized for modern LTS Java.
-- **Quarkus 3.20.x**: Our current target version.
+- **Quarkus 3.40.x (LTS)**: Our current target version.
 
 ### Building & Testing
 We use our own `examples/` directory as the primary integration test suite.
@@ -19,6 +19,9 @@ We use our own `examples/` directory as the primary integration test suite.
 ```bash
 # Build the core tools
 bazel build //tools/...
+
+# Run the augmentor unit tests
+bazel test //tools/src/test:tests
 
 # Run the Hello World example
 bazel run //examples/hello-world
@@ -52,7 +55,7 @@ When contributing code, please respect our **Three-Layer Architecture**. This se
 We organize extension support into 5 Tiers. If you want to add a new extension:
 
 1.  **Check the Tier:** Does it fit into Database (Tier 2), Messaging (Tier 3), or Quarkiverse (Tier 5)?
-2.  **Update `MODULE.bazel`:** Add both the `runtime` and `deployment` artifacts to the `maven.install` section.
+2.  **Update `MODULE.bazel`:** Add both the `runtime` and `deployment` artifacts to the `maven.install` section. Quarkiverse extensions are versioned per Quarkus line: add the version to **every** entry of `_PROFILES` (or `None` if the extension has no release for that line yet, and declare it conditionally like Unleash).
 3.  **Add to `examples/demo-extensions`:** Create a simple endpoint in the demo app to verify the extension works under Bazel's classloader.
 4.  **Verify Transitive Deps:** Quarkus deployment modules often have complex transitive dependencies. Use `exclusions` in `MODULE.bazel` if you encounter circular dependency errors.
 
@@ -63,7 +66,7 @@ We organize extension support into 5 Tiers. If you want to add a new extension:
 1.  **Check Issues & Roadmap:** Review open issues and the project roadmap to see current priorities.
 2.  **Fork & Branch:** Use descriptive branch names like `feat/tier-3-kafka` or `fix/classloader-issue`.
 3.  **Surgical Changes:** We prefer targeted fixes. If you're refactoring core logic, please explain the "Why" in the PR.
-4.  **Testing is Mandatory:** Every PR must be verified against at least one example project. Provide the `bazel run` output in your PR description.
+4.  **Testing is Mandatory:** Every PR must pass `bazel test //...` and be verified against at least one example project. Provide the `bazel run` output in your PR description. CI runs this for every Quarkus line; to reproduce a line locally, set `QUARKUS_LINE` in `MODULE.bazel`.
 
 ---
 

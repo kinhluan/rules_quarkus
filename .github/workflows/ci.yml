@@ -8,12 +8,31 @@ on:
 
 jobs:
   build-and-test:
+    name: Quarkus ${{ matrix.quarkus-line }}.x
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # A failing experimental line is reported but doesn't fail the workflow.
+    continue-on-error: ${{ matrix.experimental }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Must match keys of _PROFILES in MODULE.bazel.
+          - quarkus-line: "3"
+            experimental: false
+          - quarkus-line: "4"
+            experimental: true
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Select Quarkus ${{ matrix.quarkus-line }}.x
+      run: |
+        sed -i 's/^QUARKUS_LINE = ".*"/QUARKUS_LINE = "${{ matrix.quarkus-line }}"/' MODULE.bazel
+        # Fail loudly if the assignment was renamed and sed matched nothing.
+        grep -x 'QUARKUS_LINE = "${{ matrix.quarkus-line }}"' MODULE.bazel
 
     - name: Set up Java 21
       uses: actions/setup-java@v4
@@ -32,32 +51,42 @@ jobs:
         path: |
           ~/.cache/bazel
           ~/.cache/bazelisk
-        key: ${{ runner.os }}-bazel-${{ hashFiles('**/MODULE.bazel', '**/BUILD.bazel') }}
+        key: ${{ runner.os }}-bazel-q${{ matrix.quarkus-line }}-${{ hashFiles('**/MODULE.bazel', '**/BUILD.bazel') }}
         restore-keys: |
-          ${{ runner.os }}-bazel-
+          ${{ runner.os }}-bazel-q${{ matrix.quarkus-line }}-
 
     - name: Build Core Tools
       run: bazel build //tools/...
 
-    - name: Build and Test Hello World Example
+    - name: Build Hello World Example
       run: |
         bazel build //examples/hello-world:hello-world
-        # Verify the executable exists
         ls -l bazel-bin/examples/hello-world/hello-world
 
-    - name: Build and Test Tiered Extensions Demo
+    - name: Build Tiered Extensions Demo
       run: |
         # This is the most important test for classloader and tiered support
         bazel build //examples/demo-extensions:demo-extensions
-        # Verify the executable exists
         ls -l bazel-bin/examples/demo-extensions/demo-extensions
 
     - name: Test All Targets
-      # Only run if test targets exist
+      run: bazel test //... --test_output=errors
+
+    - name: Smoke-run Hello World
+      # Building only proves augmentation produced output; this proves the app boots and serves.
       run: |
-        # Check if there are any test targets
-        if bazel query 'kind(".*_test", //...)' 2>/dev/null | grep -q .; then
-          bazel test //... --test_output=errors
-        else
-          echo "No test targets found, skipping test phase"
-        fi
+        bazel-bin/examples/hello-world/hello-world > app.log 2>&1 &
+        APP_PID=$!
+        trap 'kill $APP_PID 2>/dev/null || true' EXIT
+        for i in $(seq 1 60); do
+          if BODY=$(curl -sf http://localhost:8080/hello); then
+            echo "GET /hello -> $BODY"
+            echo "$BODY" | grep -q "Hello"
+            exit 0
+          fi
+          if ! kill -0 $APP_PID 2>/dev/null; then
+            echo "App exited early"; cat app.log; exit 1
+          fi
+          sleep 1
+        done
+        echo "App did not answer within 60s"; cat app.log; exit 1

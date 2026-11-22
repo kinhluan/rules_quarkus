@@ -3,29 +3,29 @@ load("//quarkus:quarkus.bzl", "quarkus_application")
 quarkus_application(
     name = "demo-extensions",
     srcs = glob(["src/main/java/**/*.java"]),
-    resources = glob(["src/main/resources/**/*"]),
 
-    # Compile-time dependencies (APIs only)
-    deps = [
-        # Jakarta APIs
-        "@maven//:jakarta_enterprise_jakarta_enterprise_cdi_api",
-        "@maven//:jakarta_inject_jakarta_inject_api",
-        "@maven//:jakarta_ws_rs_jakarta_ws_rs_api",
-        "@maven//:jakarta_annotation_jakarta_annotation_api",
+    # Deployment extensions
+    deployment_extensions = [
+        # Tier 1: Core
+        "@maven//:io_quarkus_quarkus_arc_deployment",
+        "@maven//:io_quarkus_quarkus_rest_deployment",
+        "@maven//:io_quarkus_quarkus_rest_jackson_deployment",
+        "@maven//:io_quarkus_quarkus_mutiny_deployment",
+        "@maven//:io_quarkus_quarkus_vertx_http_deployment",
 
-        # Quarkus Core
-        "@maven//:io_quarkus_quarkus_core",
-
-        # Mutiny API
-        "@maven//:io_smallrye_reactive_mutiny",
-
-        # Health API
-        "@maven//:org_eclipse_microprofile_health_microprofile_health_api",
-
-        # Jackson for JSON
-        "@maven//:com_fasterxml_jackson_core_jackson_databind",
-        "@maven//:com_fasterxml_jackson_core_jackson_annotations",
+        # Tier 4: Observability
+        "@maven//:io_quarkus_quarkus_smallrye_health_deployment",
+        "@maven//:io_quarkus_quarkus_micrometer_registry_prometheus_deployment",
     ],
+    jvm_flags = [
+        "-Xmx512m",
+        "-Djava.util.logging.manager=org.jboss.logmanager.LogManager",
+    ],
+
+    # Main class (required)
+    # For standard Quarkus apps without custom @QuarkusMain, use GeneratedMain
+    main_class = "io.quarkus.runner.GeneratedMain",
+    resources = glob(["src/main/resources/**/*"]),
 
     # Runtime extensions - simplified (no messaging to avoid connection issues)
     runtime_extensions = [
@@ -41,26 +41,24 @@ quarkus_application(
         "@maven//:io_quarkus_quarkus_micrometer_registry_prometheus",
     ],
 
-    # Deployment extensions
-    deployment_extensions = [
-        # Tier 1: Core
-        "@maven//:io_quarkus_quarkus_arc_deployment",
-        "@maven//:io_quarkus_quarkus_rest_deployment",
-        "@maven//:io_quarkus_quarkus_rest_jackson_deployment",
-        "@maven//:io_quarkus_quarkus_mutiny_deployment",
-        "@maven//:io_quarkus_quarkus_vertx_http_deployment",
+    # Compile-time dependencies (APIs only)
+    deps = [
+        # Jakarta APIs
+        "@quarkus_line//:cdi_api",  # CDI API label differs per Quarkus line
+        "@maven//:jakarta_inject_jakarta_inject_api",
+        "@maven//:jakarta_ws_rs_jakarta_ws_rs_api",
+        "@maven//:jakarta_annotation_jakarta_annotation_api",
 
-        # Tier 4: Observability
-        "@maven//:io_quarkus_quarkus_smallrye_health_deployment",
-        "@maven//:io_quarkus_quarkus_micrometer_registry_prometheus_deployment",
-    ],
+        # Quarkus Core
+        "@maven//:io_quarkus_quarkus_core",
 
-    # Main class (required)
-    # For standard Quarkus apps without custom @QuarkusMain, use GeneratedMain
-    main_class = "io.quarkus.runner.GeneratedMain",
+        # Mutiny API
+        "@maven//:io_smallrye_reactive_mutiny",
 
-    jvm_flags = [
-        "-Xmx512m",
-        "-Djava.util.logging.manager=org.jboss.logmanager.LogManager",
+        # Health API
+        "@maven//:org_eclipse_microprofile_health_microprofile_health_api",
+
+        # Jackson annotations (same artifact for Jackson 2 and 3)
+        "@maven//:com_fasterxml_jackson_core_jackson_annotations",
     ],
 )
