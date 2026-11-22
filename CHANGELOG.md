@@ -6,6 +6,16 @@ and the project uses [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 
 ## [Unreleased]
 
+### Added
+
+- `AGENTS.md`: repository guide for AI coding agents (layout, commands, invariants). `CLAUDE.md` imports it.
+
+### Changed
+
+- README rewritten: status table (supported / planned), Mermaid architecture diagram, and an
+  extension table that separates extensions augmented in CI from those that are only pinned.
+  Fixed the launcher path in the quick start (`bazel-bin/my-app`).
+
 ## [0.3.0] - 2026-11-22
 
 ### Added
