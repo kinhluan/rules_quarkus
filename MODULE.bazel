@@ -38,7 +38,9 @@ _PROFILES = {
         "gizmo": "1.10.1",
         "jandex": "3.6.0",
         "asm": "9.10.1",
-        "cdi_api": "4.1.0",
+        "cdi_api": "jakarta.enterprise:jakarta.enterprise.cdi-api:4.1.0",
+        "cdi_api_label": "@maven//:jakarta_enterprise_jakarta_enterprise_cdi_api",
+        "excluded": [],
         "unleash": "1.15.0",
         "langchain4j": "1.13.3",
         "tika": "2.3.2",
@@ -49,7 +51,15 @@ _PROFILES = {
         "gizmo": "1.10.1",
         "jandex": "3.6.1",
         "asm": "9.11.1",
-        "cdi_api": "5.0.0",
+        # CDI 5 moved to jakarta.cdi:*. The old jakarta.enterprise coordinates are
+        # relocation POMs whose parent relocates to a non-existent
+        # jakarta.cdi:jakarta.cdi.parent, which Coursier fails on - so exclude them.
+        "cdi_api": "jakarta.cdi:jakarta.cdi-api:5.0.0",
+        "cdi_api_label": "@maven//:jakarta_cdi_jakarta_cdi_api",
+        "excluded": [
+            "jakarta.enterprise:jakarta.enterprise.cdi-api",
+            "jakarta.enterprise:jakarta.enterprise.lang-model",
+        ],
         # Latest quarkus-unleash (1.15.0) is built against Quarkus 3.38.
         "unleash": None,
         "langchain4j": "2.0.0.Beta4",
@@ -176,7 +186,7 @@ maven.install(
         # ===========================================
         # Jakarta APIs
         # ===========================================
-        "jakarta.enterprise:jakarta.enterprise.cdi-api:%s" % _V["cdi_api"],
+        _V["cdi_api"],
         "jakarta.inject:jakarta.inject-api:2.0.1",
         "jakarta.annotation:jakarta.annotation-api:3.0.0",
         "jakarta.ws.rs:jakarta.ws.rs-api:4.0.0",
@@ -204,7 +214,7 @@ maven.install(
     ] + _UNLEASH_ARTIFACTS,
     excluded_artifacts = [
         "asm:asm",
-    ],
+    ] + _V["excluded"],
     fail_if_repin_required = False,
     fetch_sources = True,
     generate_compat_repositories = True,
@@ -430,3 +440,12 @@ maven.artifact(
     version = TIKA_VERSION,
 )
 use_repo(maven, "maven")
+
+# Line-dependent aliases for the examples (see examples/quarkus_line.bzl).
+quarkus_line = use_repo_rule("//examples:quarkus_line.bzl", "quarkus_line")
+
+quarkus_line(
+    name = "quarkus_line",
+    cdi_api = _V["cdi_api_label"],
+    line = QUARKUS_LINE,
+)

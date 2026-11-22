@@ -11,6 +11,8 @@ and the project uses [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - **Quarkus version lines.** `MODULE.bazel` selects a pinned dependency profile with
   `QUARKUS_LINE`: `"3"` (Quarkus 3.40.1.2 LTS, default) or `"4"` (Quarkus 4.0.0, experimental).
   Each profile pins Vert.x, Jandex, ASM, the CDI API and Quarkiverse extensions to that line's BOM.
+  On 4.x the CDI API comes from its new `jakarta.cdi:jakarta.cdi-api` coordinates; examples
+  depend on `@quarkus_line//:cdi_api`, an alias that resolves to the right label per line.
 - **Persistent worker** for augmentation (JSON worker protocol). The JVM startup and Quarkus
   bootstrap cost is paid once per build instead of once per application.
 - `quarkus_application` attributes: `runtime_deps` (runtime-only deps, kept off the compile
