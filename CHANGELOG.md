@@ -4,7 +4,9 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/) (pre-1.0: minor versions may break).
 
-## [Unreleased] - 0.3.0
+## [Unreleased]
+
+## [0.3.0] - 2026-11-22
 
 ### Added
 
@@ -80,6 +82,7 @@ and the project uses [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 
 - Replaced `native.sh_binary` (removed in Bazel 9); pinned Bazel 7.6.1.
 
-[Unreleased]: https://github.com/kinhluan/rules_quarkus/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/kinhluan/rules_quarkus/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/kinhluan/rules_quarkus/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/kinhluan/rules_quarkus/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kinhluan/rules_quarkus/releases/tag/v0.1.0
