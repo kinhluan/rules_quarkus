@@ -2,9 +2,11 @@ package io.quarkus.bazel.bootstrap;
 
 import java.io.InputStream;
 import java.nio.file.Path;
-import java.util.ArrayList;
+import java.util.Objects;
 import java.util.List;
+import java.nio.file.NoSuchFileException;
 import java.util.Properties;
+import java.util.zip.ZipException;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
@@ -23,23 +25,10 @@ public class ExtensionDetector {
      * Detect all Quarkus extensions from a list of JAR files.
      */
     public static List<ExtensionInfo> detect(List<Path> jarPaths) {
-        List<ExtensionInfo> extensions = new ArrayList<>();
-
-        for (Path jarPath : jarPaths) {
-            ExtensionInfo info = detectExtension(jarPath);
-            if (info != null) {
-                extensions.add(info);
-            }
-        }
-
-        return extensions;
-    }
-
-    /**
-     * Check if a JAR is a Quarkus extension.
-     */
-    public static boolean isQuarkusExtension(Path jarPath) {
-        return detectExtension(jarPath) != null;
+        return jarPaths.parallelStream()
+                .map(ExtensionDetector::detectExtension)
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     /**
@@ -61,73 +50,28 @@ public class ExtensionDetector {
 
             return createExtensionInfo(jarPath, props);
 
+        } catch (ZipException | NoSuchFileException e) {
+            // Not a valid JAR: an EXPECTED outcome while scanning a classpath, not an error.
+            return null;
         } catch (Exception e) {
-            // Not a valid JAR or can't read properties
+            // A real failure (permissions, truncated JAR, I/O): still return null so augmentation
+            // doesn't break, but say so. Swallowing it silently drops an extension, and the failure
+            // then surfaces somewhere else entirely - a build step that never ran, a bean that was
+            // never registered - which is very hard to trace back here.
+            System.err.println("  WARNING: cannot read extension metadata from "
+                + jarPath.getFileName() + ": " + e);
             return null;
         }
     }
 
     private static ExtensionInfo createExtensionInfo(Path jarPath, Properties props) {
-        // Extract coordinates from JAR path (Bazel Maven layout)
-        MavenCoords coords = parseMavenCoords(jarPath);
+        MavenCoords coords = MavenCoords.fromJarPath(jarPath);
 
-        String groupId = coords != null ? coords.groupId : props.getProperty("groupId", "unknown");
-        String artifactId = coords != null ? coords.artifactId : props.getProperty("artifactId", "unknown");
-        String version = coords != null ? coords.version : props.getProperty("version", "unknown");
+        String groupId   = coords != null ? coords.groupId()   : props.getProperty("groupId", "unknown");
+        String artifactId = coords != null ? coords.artifactId() : props.getProperty("artifactId", "unknown");
+        String version   = coords != null ? coords.version()   : props.getProperty("version", "unknown");
 
-        // deployment-artifact property contains full coordinates
-        String deploymentArtifact = props.getProperty("deployment-artifact");
-
-        return new ExtensionInfo(jarPath, groupId, artifactId, version, deploymentArtifact, props);
+        return new ExtensionInfo(jarPath, groupId, artifactId, version);
     }
 
-    /**
-     * Parse Maven coordinates from Bazel external JAR path.
-     * Path pattern: .../maven2/GROUP_PATH/ARTIFACT/VERSION/ARTIFACT-VERSION.jar
-     */
-    private static MavenCoords parseMavenCoords(Path jarPath) {
-        String path = jarPath.toString();
-        String[] parts = path.split("/");
-
-        String version = null;
-        String artifact = null;
-        List<String> groupParts = new ArrayList<>();
-
-        boolean foundMaven = false;
-        for (int i = 0; i < parts.length; i++) {
-            if (parts[i].equals("maven2") || parts[i].equals("repository")) {
-                foundMaven = true;
-                continue;
-            }
-
-            if (foundMaven) {
-                if (i == parts.length - 2) {
-                    version = parts[i];
-                } else if (i == parts.length - 3) {
-                    artifact = parts[i];
-                } else if (i < parts.length - 3) {
-                    groupParts.add(parts[i]);
-                }
-            }
-        }
-
-        if (artifact != null && version != null && !groupParts.isEmpty()) {
-            String groupId = String.join(".", groupParts);
-            return new MavenCoords(groupId, artifact, version);
-        }
-
-        return null;
-    }
-
-    static class MavenCoords {
-        final String groupId;
-        final String artifactId;
-        final String version;
-
-        MavenCoords(String groupId, String artifactId, String version) {
-            this.groupId = groupId;
-            this.artifactId = artifactId;
-            this.version = version;
-        }
-    }
 }

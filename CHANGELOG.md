@@ -1,0 +1,83 @@
+# Changelog
+
+All notable changes to this project are documented here.
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and the project uses [Semantic Versioning](https://semver.org/) (pre-1.0: minor versions may break).
+
+## [Unreleased] - 0.3.0
+
+### Added
+
+- **Quarkus version lines.** `MODULE.bazel` selects a pinned dependency profile with
+  `QUARKUS_LINE`: `"3"` (Quarkus 3.40.1.2 LTS, default) or `"4"` (Quarkus 4.0.0, experimental).
+  Each profile pins Vert.x, Jandex, ASM, the CDI API and Quarkiverse extensions to that line's BOM.
+- **Persistent worker** for augmentation (JSON worker protocol). The JVM startup and Quarkus
+  bootstrap cost is paid once per build instead of once per application.
+- `quarkus_application` attributes: `runtime_deps` (runtime-only deps, kept off the compile
+  classpath), `data` (runtime files for `bazel run`) and `plugins` (annotation processors).
+- Remote debugging in the runner: `--debug` or `DEBUG=1` (JDWP on port 5005, suspended).
+  `DEBUG_PORT` and `DEBUG_SUSPEND=n` change the port and suspension.
+- Unit tests for the augmentor (`bazel test //tools/src/test:tests`), run in CI.
+- CI matrix over Quarkus 3.x and 4.x, plus a smoke run of the hello-world app (`GET /hello`).
+
+### Changed
+
+- Quarkus 3.20.1 → 3.40.1.2, rules_java 8.6.2 → 8.14.0, rules_jvm_external 6.5 → 6.6.
+  Quarkiverse: unleash 1.10.0 → 1.15.0, langchain4j 0.26.1 → 1.13.3, tika 2.1.0 → 2.3.2.
+- `maven.install` uses `version_conflict_policy = "pinned"`: explicit pins win over transitive versions.
+- Only the application's own class JAR is the application artifact. Its transitive dependencies
+  become runtime dependencies, and the application JAR is excluded from them. This fixes duplicate
+  `@QuarkusMain` classes failing `MainClassBuildStep`.
+- Bazel-built JARs sharing a filename (e.g. several `libbuild.jar`) are staged under unique names
+  so that none overwrites another in `lib/main/`.
+- Internal Bazel JARs are registered with `quarkus.index-dependency` so their CDI beans are discovered.
+- Runtime JARs are no longer repeated in `--deployment-jars`; the augmentor always uses a param file.
+- A failure to copy a boot JAR now fails the build instead of producing an app that dies at startup.
+- `quarkus_runner` resolves the augmented app correctly when the rules are used from another repository.
+- Labels repeated across `deps`, `runtime_deps` and `runtime_extensions` are deduplicated.
+- README: install with `git_override` (the BCR module named `rules_quarkus` is a different project),
+  and load from `@rules_quarkus//quarkus:defs.bzl`.
+
+### Breaking
+
+- **The runner launches from `lib/boot/` only.** `lib/main/` is no longer on the system classpath;
+  Quarkus' `RunnerClassLoader` loads it. Putting it on the system classpath loaded application
+  classes twice.
+- **The runner no longer adds `-Djava.util.logging.manager=org.jboss.logmanager.LogManager`.**
+  Add it to `jvm_flags` if your application relies on it (both examples do).
+- `--debug` is consumed by the runner and is no longer passed to the application.
+- The augmentor system classpath no longer contains `quarkus-core`, `quarkus-core-deployment`,
+  `arc` and `arc-deployment`; they come from the application model only. This avoids the same
+  class being loaded by both the system and the augmentation classloader.
+
+### Removed
+
+- Placeholder test sources `HelloWorldTest` and `TestDeps`.
+
+## [0.2.0] - 2026-03-12
+
+### Added
+
+- Community documentation, technical blog posts and CI workflow.
+
+### Fixed
+
+- Classloader fixes in the augmentor.
+- `Argument list too long` on large classpaths (param files).
+- Missing imports in `ConfigParser`.
+
+## [0.1.0] - 2026-03-01
+
+### Added
+
+- `quarkus_application` and `quarkus_library` macros: compile, augment via the QuarkusBootstrap API, run.
+- Quarkus 3.20.1 with five tiers of extensions (core, reactive database, messaging, observability, Quarkiverse).
+- `hello-world` and `demo-extensions` examples.
+
+### Fixed
+
+- Replaced `native.sh_binary` (removed in Bazel 9); pinned Bazel 7.6.1.
+
+[Unreleased]: https://github.com/kinhluan/rules_quarkus/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/kinhluan/rules_quarkus/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/kinhluan/rules_quarkus/releases/tag/v0.1.0

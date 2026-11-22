@@ -21,36 +21,37 @@ import java.util.List;
 public class ConfigParser {
 
     public static AugmentationConfig parse(String[] args) {
-        // Expand @filename arguments from Bazel param files
-        String[] expandedArgs = expandArgs(args);
+        // Expand Bazel param file (@file) if present
+        args = expandParamFile(args);
+
         AugmentationConfig.Builder builder = AugmentationConfig.builder();
 
-        for (int i = 0; i < expandedArgs.length; i++) {
-            String arg = expandedArgs[i];
+        for (int i = 0; i < args.length; i++) {
+            String arg = args[i];
 
             switch (arg) {
                 case "--output-dir":
-                    builder.setOutputDir(Paths.get(expandedArgs[++i]));
+                    builder.setOutputDir(Paths.get(args[++i]));
                     break;
 
                 case "--application-jars":
-                    builder.addApplicationJars(parseJarList(expandedArgs[++i]));
+                    builder.addApplicationJars(parseJarList(args[++i]));
                     break;
 
                 case "--runtime-jars":
-                    builder.addRuntimeJars(parseJarList(expandedArgs[++i]));
+                    builder.addRuntimeJars(parseJarList(args[++i]));
                     break;
 
                 case "--deployment-jars":
-                    builder.addDeploymentJars(parseJarList(expandedArgs[++i]));
+                    builder.addDeploymentJars(parseJarList(args[++i]));
                     break;
 
                 case "--app-name":
-                    builder.setApplicationName(expandedArgs[++i]);
+                    builder.setApplicationName(args[++i]);
                     break;
 
                 case "--main-class":
-                    builder.setMainClass(expandedArgs[++i]);
+                    builder.setMainClass(args[++i]);
                     break;
 
                 default:
@@ -65,27 +66,6 @@ public class ConfigParser {
         }
 
         return builder.build();
-    }
-
-    /**
-     * Expands arguments starting with '@' by reading the file content.
-     */
-    private static String[] expandArgs(String[] args) {
-        List<String> expanded = new ArrayList<>();
-        for (String arg : args) {
-            if (arg.startsWith("@")) {
-                Path paramFile = Paths.get(arg.substring(1));
-                try {
-                    expanded.addAll(Files.readAllLines(paramFile));
-                } catch (IOException e) {
-                    System.err.println("Error reading param file: " + paramFile);
-                    e.printStackTrace();
-                }
-            } else {
-                expanded.add(arg);
-            }
-        }
-        return expanded.toArray(new String[0]);
     }
 
     private static void handleKeyValue(AugmentationConfig.Builder builder, String key, String value) {
@@ -111,21 +91,64 @@ public class ConfigParser {
         }
     }
 
-    private static List<Path> parseJarList(String jarList) {
-        List<Path> jars = new ArrayList<>();
+    /**
+     * Expand Bazel param file. When args start with @path, read args from that file.
+     */
+    private static String[] expandParamFile(String[] args) {
+        if (args.length == 1 && args[0].startsWith("@")) {
+            Path paramFile = Paths.get(args[0].substring(1));
+            try {
+                List<String> lines = Files.readAllLines(paramFile);
+                lines.removeIf(String::isEmpty);
+                return lines.toArray(String[]::new);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to read param file: " + paramFile, e);
+            }
+        }
+        return args;
+    }
 
+    private static List<Path> parseJarList(String jarList) {
         if (jarList == null || jarList.isEmpty()) {
-            return jars;
+            return new ArrayList<>();
         }
 
         // Handle both comma-separated and File.pathSeparator-separated
-        String separator = jarList.contains(",") ? "," : java.io.File.pathSeparator;
+        char separator = jarList.indexOf(',') >= 0 ? ',' : java.io.File.pathSeparatorChar;
 
-        for (String jar : jarList.split(separator)) {
-            String trimmed = jar.trim();
-            if (!trimmed.isEmpty()) {
-                jars.add(Paths.get(trimmed));
+        int len = jarList.length();
+        int count = 1;
+        for (int i = 0; i < len; i++) {
+            if (jarList.charAt(i) == separator) {
+                count++;
             }
+        }
+
+        List<Path> jars = new ArrayList<>(count);
+        int current = 0;
+
+        while (current < len) {
+            int next = jarList.indexOf(separator, current);
+            int end = next == -1 ? len : next;
+
+            // Extract and trim inline without allocating intermediate strings
+            int trimStart = current;
+            while (trimStart < end && Character.isWhitespace(jarList.charAt(trimStart))) {
+                trimStart++;
+            }
+            int trimEnd = end - 1;
+            while (trimEnd >= trimStart && Character.isWhitespace(jarList.charAt(trimEnd))) {
+                trimEnd--;
+            }
+
+            if (trimStart <= trimEnd) {
+                jars.add(Paths.get(jarList.substring(trimStart, trimEnd + 1)));
+            }
+
+            if (next == -1) {
+                break;
+            }
+            current = next + 1;
         }
 
         return jars;

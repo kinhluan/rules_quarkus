@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/icon-512.png" alt="rules_quarkus logo" width="200">
+</p>
+
 # rules_quarkus — Bazel Rules for Quarkus Applications
 
 [![CI](https://github.com/kinhluan/rules_quarkus/actions/workflows/ci.yml/badge.svg)](https://github.com/kinhluan/rules_quarkus/actions/workflows/ci.yml)
@@ -7,37 +11,52 @@ Bazel rules for building Quarkus applications with build-time augmentation suppo
 
 ## Overview
 
-`rules_quarkus` provides native Bazel support for building Quarkus applications, filling the gap where no official Bazel rules exist for the Quarkus framework. The project implements Quarkus's unique build-time augmentation process within Bazel's build system, enabling developers to use Bazel's powerful dependency management and caching while maintaining full Quarkus functionality.
+`rules_quarkus` provides native Bazel support for building Quarkus applications, focused on **large monorepos with trunk-based development**: fast incremental augmentation, a small API that is easy to read, and extension points to add your own features. The project implements Quarkus's unique build-time augmentation process within Bazel's build system, enabling developers to use Bazel's powerful dependency management and caching while maintaining full Quarkus functionality.
 
 ## Quick Start
 
 ### Installation
 
+> **Not on the Bazel Central Registry.** The BCR module named `rules_quarkus` is a different project,
+> [quarkusio/quarkus-bazel-rules](https://github.com/quarkusio/quarkus-bazel-rules). A plain
+> `bazel_dep(name = "rules_quarkus", ...)` resolves to that one. Install this project with
+> `git_override` as below. Don't depend on both projects in one workspace: they share the module name.
+
 Add the following to your `MODULE.bazel`:
 
 ```python
-bazel_dep(name = "rules_quarkus", version = "0.1.0")
+bazel_dep(name = "rules_quarkus", version = "0.3.0")
+git_override(
+    module_name = "rules_quarkus",
+    remote = "https://github.com/kinhluan/rules_quarkus.git",
+    tag = "v0.3.0",  # or: commit = "<sha>" to pin an unreleased revision
+)
+
+bazel_dep(name = "rules_jvm_external", version = "6.6")
 
 # Add Quarkus dependencies
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.install(
     name = "maven",
     artifacts = [
-        "io.quarkus:quarkus-arc:3.20.1",
-        "io.quarkus:quarkus-rest:3.20.1",
-        "io.quarkus:quarkus-vertx-http:3.20.1",
+        "io.quarkus:quarkus-arc:3.40.1.2",
+        "io.quarkus:quarkus-rest:3.40.1.2",
+        "io.quarkus:quarkus-vertx-http:3.40.1.2",
         "jakarta.ws.rs:jakarta.ws.rs-api:4.0.0",
         # ... add more dependencies as needed
     ],
 )
 ```
 
+`git_override` only takes effect in the root module. The `version` in `bazel_dep` must still be set,
+but the override decides which code is fetched.
+
 ### Basic Usage
 
 Create a `BUILD.bazel` file:
 
 ```python
-load("//quarkus:quarkus.bzl", "quarkus_application")
+load("@rules_quarkus//quarkus:defs.bzl", "quarkus_application")
 
 quarkus_application(
     name = "my-app",
@@ -116,11 +135,11 @@ curl http://localhost:8080/hello
 | `quarkus-smallrye-health` | Health checks |
 
 ### Tier 5: Quarkiverse
-| Extension | Description | Version |
-|-----------|-------------|---------|
-| `quarkus-unleash` | Feature flags | 1.10.0 |
-| `quarkus-langchain4j-*` | AI/LLM integration | 0.26.1 |
-| `quarkus-tika` | Content analysis | 2.1.0 |
+| Extension | Description | Quarkus 3.x | Quarkus 4.x |
+|-----------|-------------|-------------|-------------|
+| `quarkus-unleash` | Feature flags | 1.15.0 | not yet available |
+| `quarkus-langchain4j-*` | AI/LLM integration | 1.13.3 | 2.0.0.Beta4 |
+| `quarkus-tika` | Content analysis | 2.3.2 | 4.0.0 |
 
 ## Architecture
 
@@ -148,8 +167,14 @@ Quarkus build-time augmentation using the official QuarkusBootstrap API:
 - Extension discovery
 - Optimized bytecode generation
 
+The augmentor runs as a Bazel **persistent worker**, so the JVM startup and Quarkus bootstrap
+class loading are paid once per build instead of once per application. Bazel-built JARs that
+share a filename (e.g. several `libbuild.jar`) are staged under unique names so none overwrites
+another in `lib/main/`.
+
 ### Layer 3: Runtime
-Executable application with fully processed Quarkus features:
+A `quarkus_runner` shell wrapper that resolves the augmented app from runfiles and launches it via
+`QuarkusEntryPoint` on the `lib/boot/` classpath. Executable application with fully processed Quarkus features:
 - Fast startup time
 - Low memory usage
 - Build-time optimizations applied
@@ -160,7 +185,17 @@ Executable application with fully processed Quarkus features:
 |-----------|---------|
 | [Bazel](https://bazel.build/install) | 7.x+ |
 | [Java](https://adoptium.net/) | 21 |
-| [Quarkus](https://quarkus.io) | 3.20.1 |
+| [Quarkus](https://quarkus.io) | 3.40.1.2 (LTS, default) or 4.0.0 (experimental) |
+
+### Quarkus version lines
+
+`MODULE.bazel` carries one pinned dependency profile per Quarkus line (`_PROFILES`). Select it with:
+
+```python
+QUARKUS_LINE = "3"   # 3.40.1.2 LTS (default), or "4" for 4.0.0
+```
+
+Each profile pins the libraries Quarkus is sensitive to (Vert.x, Jandex, ASM, CDI API, Quarkiverse extensions) to the versions in that line's BOM. Pins win over transitive versions, so mixing lines (e.g. Vert.x 4 under Quarkus 4) breaks augmentation. CI builds and tests every line; 4.x is marked experimental. Unleash is not yet available for 4.x and is left out of that profile.
 
 ## Examples
 
@@ -190,11 +225,18 @@ Main macro for building Quarkus applications.
 - `name`: Application name (Required)
 - `srcs`: Java source files
 - `resources`: Application resources (application.properties, etc.)
-- `deps`: Regular dependencies (non-Quarkus libraries)
+- `deps`: Compile-time dependencies (referenced by source code)
+- `runtime_deps`: Runtime-only dependencies (JDBC drivers, serializers, ...). Not on the compile classpath, so ABI changes in them don't recompile the app
 - `runtime_extensions`: Quarkus runtime extension modules
 - `deployment_extensions`: Quarkus deployment modules
 - `main_class`: **Required**. Set to your `@QuarkusMain` class or the main class from `pom.xml`. Use `"io.quarkus.runner.GeneratedMain"` for standard applications.
 - `jvm_flags`: JVM flags for running the application
+- `data`: Runtime data files (e.g. config files) made available to `bazel run`
+- `plugins`: Annotation processor plugins (e.g. Lombok)
+
+Labels listed in several of `deps` / `runtime_deps` / `runtime_extensions` are deduplicated.
+
+**Debugging:** `bazel run //:my-app -- --debug` (or `DEBUG=1`) starts the app with JDWP on port 5005, suspended until a debugger attaches. Use `DEBUG_PORT` / `DEBUG_SUSPEND=n` to change that.
 
 ### `quarkus_library`
 
@@ -211,6 +253,8 @@ Creates a library that can be used as a dependency for Quarkus applications.
 
 - [Architecting Deterministic Quarkus Builds: Native Support for Bazel](docs/blogs/2026-03-11-bazel-support-for-quarkus.md) — An in-depth look at the architecture and motivation behind `rules_quarkus`.
 - [Deep Dive: Taming the Quarkus ClassLoader for Hermetic Bazel Builds](docs/blogs/2026-03-12-deep-dive-quarkus-classloader-bazel.md) — The technical journey of solving ClassLoader challenges and Quarkus Issue #52915.
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes and breaking changes.
 
 ## Contributing
 

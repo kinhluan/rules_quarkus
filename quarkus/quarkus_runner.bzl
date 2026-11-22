@@ -1,176 +1,127 @@
 """
 Quarkus Runner Rule
 
-This rule creates an executable shell script that properly runs a Quarkus application
-using Bazel runfiles. It resolves the augmented app directory from runfiles and
-launches Quarkus through the boot classloader.
+Creates an executable shell script that runs a Quarkus augmented application.
+The quarkus_bootstrap rule outputs a directory (not a JAR with JavaInfo), so
+java_binary can't consume it as runtime_deps; this wrapper launches it instead.
 """
 
+def _runfiles_path(f):
+    """Path of `f` relative to the runfiles root.
+
+    Files of the main repository live under `_main/`, files of external
+    repositories have a short_path of `../<repo>/...` and live under `<repo>/`.
+    """
+    if f.short_path.startswith("../"):
+        return f.short_path[3:]
+    return "_main/" + f.short_path
+
 def _quarkus_runner_impl(ctx):
-    """
-    Implementation of quarkus_runner rule.
-
-    Creates a shell script that:
-    1. Resolves augmented app dir from Bazel runfiles
-    2. Supports BUILD_WORKSPACE_DIRECTORY when bazel run
-    3. Launches via boot classloader
-    """
-
-    # Create the runner script
-    script = ctx.actions.declare_file(ctx.label.name)
-
-    # Get the augmented app target (single label, not a list)
-    augmented_app = ctx.attr.augmented_app
-
-    # Get the augmented app directory file from DefaultInfo
-    augmented_files = augmented_app[DefaultInfo].files.to_list()
+    augmented_files = ctx.attr.augmented_app[DefaultInfo].files.to_list()
     if not augmented_files:
-        fail("augmented_app must produce at least one file")
+        fail("augmented_app must produce the augmented application directory")
     augmented_dir = augmented_files[0]
 
-    # Build the script content
-    script_content = r"""#!/bin/bash
-set -e
+    jvm_flags = " ".join(['"%s"' % f.replace('"', '\\"') for f in ctx.attr.jvm_flags])
 
-# Resolve the runfiles directory
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    script = ctx.actions.declare_file(ctx.label.name)
+    ctx.actions.write(
+        output = script,
+        content = """#!/usr/bin/env bash
+set -euo pipefail
 
-# Try multiple possible runfiles locations in order of preference
-RUNFILES_DIR=""
-
-# Case 1: Environment variable from bazel (checked first)
-if [ -n "${{RUNFILES_DIR:-}}" ] && [ -d "${{RUNFILES_DIR:-}}" ]; then
-    RUNFILES_DIR="${{RUNFILES_DIR:-}}"
-fi
-
-# Case 2: _RUNFILES environment variable
-if [ -z "$RUNFILES_DIR" ] && [ -n "${{_RUNFILES:-}}" ] && [ -d "${{_RUNFILES:-}}" ]; then
-    RUNFILES_DIR="${{_RUNFILES:-}}"
-fi
-
-# Case 3: Direct .runfiles next to script (bazel build output)
-if [ -z "$RUNFILES_DIR" ] && [ -d "$SCRIPT_DIR.runfiles" ]; then
-    RUNFILES_DIR="$SCRIPT_DIR.runfiles"
-fi
-
-# Resolve augmented app directory from runfiles
-# Path format: workspace_name/package_path/target_name-quarkus-app
-AUGMENTED_APP_SHORT_PATH="{augmented_short_path}"
-AUGMENTED_APP=""
-
-# Try to find the augmented app in multiple locations
-if [ -n "$RUNFILES_DIR" ]; then
-    # Case A: From runfiles (standard bazel run)
-    # Try _main workspace first
-    AUGMENTED_APP="$RUNFILES_DIR/_main/$AUGMENTED_APP_SHORT_PATH"
-    
-    # Fallback: Try with workspace name from BUILD_WORKSPACE_DIRECTORY
-    if [ ! -d "$AUGMENTED_APP" ] && [ -n "$BUILD_WORKSPACE_DIRECTORY" ]; then
-        WORKSPACE_NAME="$(basename $BUILD_WORKSPACE_DIRECTORY)"
-        AUGMENTED_APP="$RUNFILES_DIR/$WORKSPACE_NAME/$AUGMENTED_APP_SHORT_PATH"
+# Resolve the augmented app directory from Bazel runfiles.
+RUNFILES_PATH="{runfiles_path}"
+APP_DIR=""
+for root in "${{RUNFILES_DIR:-}}" "$0.runfiles"; do
+    if [[ -n "$root" && -d "$root/$RUNFILES_PATH/lib/boot" ]]; then
+        APP_DIR="$root/$RUNFILES_PATH"
+        break
     fi
-    
-    # Fallback: Try rules_quarkus workspace name
-    if [ ! -d "$AUGMENTED_APP" ]; then
-        AUGMENTED_APP="$RUNFILES_DIR/rules_quarkus/$AUGMENTED_APP_SHORT_PATH"
-    fi
+done
+if [[ -z "$APP_DIR" ]]; then
+    # Fallback: script and augmented dir are siblings in bazel-bin.
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    APP_DIR="$SCRIPT_DIR/{augmented_basename}"
 fi
-
-# Case B: Direct path (when running from execroot without runfiles)
-# The augmented app is in the same directory as this script
-if [ -z "$AUGMENTED_APP" ] || [ ! -d "$AUGMENTED_APP" ]; then
-    # Try same directory first (for bazel run from execroot)
-    APP_BASE_NAME="$(basename $AUGMENTED_APP_SHORT_PATH)"
-    DIRECT_APP_PATH="$SCRIPT_DIR/$APP_BASE_NAME"
-    if [ -d "$DIRECT_APP_PATH" ]; then
-        AUGMENTED_APP="$DIRECT_APP_PATH"
-    fi
-fi
-
-if [ -z "$AUGMENTED_APP" ] || [ ! -d "$AUGMENTED_APP" ]; then
-    echo "ERROR: Cannot find augmented app" >&2
-    echo "SCRIPT_DIR=$SCRIPT_DIR" >&2
-    echo "AUGMENTED_APP_SHORT_PATH=$AUGMENTED_APP_SHORT_PATH" >&2
-    echo "RUNFILES_DIR=${{RUNFILES_DIR:-<not set>}}" >&2
-    echo "Searched:" >&2
-    if [ -n "$RUNFILES_DIR" ]; then
-        echo "  $RUNFILES_DIR/_main/$AUGMENTED_APP_SHORT_PATH" >&2
-        if [ -n "$BUILD_WORKSPACE_DIRECTORY" ]; then
-            WORKSPACE_NAME="$(basename $BUILD_WORKSPACE_DIRECTORY)"
-            echo "  $RUNFILES_DIR/$WORKSPACE_NAME/$AUGMENTED_APP_SHORT_PATH" >&2
-        fi
-        echo "  $RUNFILES_DIR/rules_quarkus/$AUGMENTED_APP_SHORT_PATH" >&2
-    fi
-    echo "  $DIRECT_APP_PATH" >&2
+if [[ ! -d "$APP_DIR/lib/boot" ]]; then
+    echo "ERROR: augmented Quarkus app not found (looked for $RUNFILES_PATH)" >&2
     exit 1
 fi
 
-# Set Quarkus application directory
-export QUARKUS_APP="$AUGMENTED_APP"
+# Remote debugging: DEBUG=1 (or true) in the environment, or --debug on the command line.
+# DEBUG_SUSPEND=n starts the app without waiting for a debugger.
+EXTRA_JVM_FLAGS=()
+APP_ARGS=()
+DEBUG_ENABLED="${{DEBUG:-}}"
+for arg in "$@"; do
+    if [[ "$arg" == "--debug" ]]; then
+        DEBUG_ENABLED=1
+    else
+        APP_ARGS+=("$arg")
+    fi
+done
+if [[ "$DEBUG_ENABLED" == "1" || "$DEBUG_ENABLED" == "true" ]]; then
+    EXTRA_JVM_FLAGS+=("-agentlib:jdwp=transport=dt_socket,server=y,suspend=${{DEBUG_SUSPEND:-y}},address=*:${{DEBUG_PORT:-5005}}")
+fi
 
-# Launch Quarkus through boot classloader
-# Include both boot and main classpath entries for proper classloading
-exec java {jvm_flags} \
-    -Djava.util.logging.manager=org.jboss.logmanager.LogManager \
-    -cp "$QUARKUS_APP/lib/boot/*:$QUARKUS_APP/lib/main/*" \
-    io.quarkus.bootstrap.runner.QuarkusEntryPoint "$@"
+# Launch through the boot classpath only. quarkus-run.jar's manifest may lack a Class-Path
+# in Bazel builds, and putting lib/main on the system classpath would load application
+# classes twice (once there, once in Quarkus' RunnerClassLoader).
+exec java {jvm_flags} ${{EXTRA_JVM_FLAGS[@]+"${{EXTRA_JVM_FLAGS[@]}}"}} \\
+    -cp "$APP_DIR/lib/boot/*" \\
+    io.quarkus.bootstrap.runner.QuarkusEntryPoint ${{APP_ARGS[@]+"${{APP_ARGS[@]}}"}}
 """.format(
-        augmented_short_path = augmented_dir.short_path,
-        jvm_flags = " ".join(ctx.attr.jvm_flags),
-    )
-
-    ctx.actions.write(
-        output = script,
-        content = script_content,
+            runfiles_path = _runfiles_path(augmented_dir),
+            augmented_basename = augmented_dir.basename,
+            jvm_flags = jvm_flags,
+        ),
         is_executable = True,
     )
 
-    # Set up runfiles to include the augmented app directory
-    runfiles = ctx.runfiles(
-        files = [augmented_dir],
-        transitive_files = augmented_app.default_runfiles.files if augmented_app.default_runfiles else None,
-    )
+    runfiles = ctx.runfiles(files = [augmented_dir] + ctx.files.data)
+    for d in ctx.attr.data:
+        runfiles = runfiles.merge(d[DefaultInfo].default_runfiles)
 
     return [
         DefaultInfo(
             executable = script,
+            files = depset([script]),
             runfiles = runfiles,
         ),
     ]
 
 quarkus_runner = rule(
     implementation = _quarkus_runner_impl,
+    executable = True,
     attrs = {
         "augmented_app": attr.label(
             mandatory = True,
-            doc = "The augmented Quarkus application target (from quarkus_bootstrap)",
+            doc = "The quarkus_bootstrap target producing the augmented app directory",
         ),
         "jvm_flags": attr.string_list(
             default = [],
             doc = "JVM flags to pass when running the application",
         ),
+        "data": attr.label_list(
+            default = [],
+            allow_files = True,
+            doc = "Runtime data files (e.g. config files) made available in runfiles",
+        ),
     },
-    executable = True,
     doc = """
-    Creates an executable shell script to run a Quarkus application.
-
-    This rule properly resolves the augmented app directory from Bazel runfiles,
-    supporting both `bazel build` and `bazel run` workflows.
-
-    Args:
-        augmented_app: The augmented application target from quarkus_bootstrap
-        jvm_flags: JVM flags for running the application
+    Creates an executable shell script that runs a Quarkus augmented application.
 
     Example:
         quarkus_runner(
             name = "my-app-runner",
             augmented_app = ":my-app_augmented",
             jvm_flags = ["-Xmx512m", "-Dquarkus.http.port=8080"],
-            visibility = ["//visibility:public"],
         )
 
     Usage:
-        bazel build :my-app-runner
         bazel run :my-app-runner
+        bazel run :my-app-runner -- --debug   # JDWP on port 5005, suspended
+        DEBUG=1 DEBUG_SUSPEND=n bazel run :my-app-runner
     """,
 )

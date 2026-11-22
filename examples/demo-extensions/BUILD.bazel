@@ -22,8 +22,7 @@ quarkus_application(
         # Health API
         "@maven//:org_eclipse_microprofile_health_microprofile_health_api",
 
-        # Jackson for JSON
-        "@maven//:com_fasterxml_jackson_core_jackson_databind",
+        # Jackson annotations (same artifact for Jackson 2 and 3)
         "@maven//:com_fasterxml_jackson_core_jackson_annotations",
     ],
 

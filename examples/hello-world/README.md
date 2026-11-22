@@ -39,7 +39,7 @@ Once the application is running, you can test the hello endpoint:
 curl http://localhost:8080/hello
 ```
 
-Expected output: `Hello from RESTEasy Reactive` (or similar depending on your code).
+Expected output: `Hello from Quarkus (built with Bazel)!`. `curl http://localhost:8080/hello/Bazel` returns `Hello, Bazel!`.
 
 ## Project Structure
 
