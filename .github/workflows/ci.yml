@@ -8,21 +8,30 @@ on:
 
 jobs:
   build-and-test:
-    name: Quarkus ${{ matrix.quarkus-line }}.x
+    name: Quarkus ${{ matrix.quarkus-line }}.x · Java ${{ matrix.java }} · Bazel ${{ matrix.bazel }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # A failing experimental line is reported but doesn't fail the workflow.
+    # A failing experimental combination is reported but doesn't fail the workflow.
     continue-on-error: ${{ matrix.experimental }}
 
     strategy:
       fail-fast: false
       matrix:
+        # Each axis is varied around one default (Quarkus 3, Java 21, Bazel from .bazelversion)
+        # instead of the full cross product: Bazel bugs and Java/Quarkus bugs rarely interact.
+        # quarkus-line must match a key of _PROFILES in MODULE.bazel.
         include:
-          # Must match keys of _PROFILES in MODULE.bazel.
-          - quarkus-line: "3"
-            experimental: false
-          - quarkus-line: "4"
-            experimental: true
+          # Quarkus line x Java, on the default Bazel
+          - { quarkus-line: "3", java: "21", bazel: "8.8.2", experimental: false }
+          - { quarkus-line: "3", java: "25", bazel: "8.8.2", experimental: false }
+          - { quarkus-line: "4", java: "21", bazel: "8.8.2", experimental: true }
+          - { quarkus-line: "4", java: "25", bazel: "8.8.2", experimental: true }
+          # Bazel, on the default line and Java
+          - { quarkus-line: "3", java: "21", bazel: "7.7.2", experimental: false }
+          - { quarkus-line: "3", java: "21", bazel: "9.3.2", experimental: false }
+
+    env:
+      USE_BAZEL_VERSION: ${{ matrix.bazel }}
 
     steps:
     - name: Checkout code
@@ -34,7 +43,18 @@ jobs:
         # Fail loudly if the assignment was renamed and sed matched nothing.
         grep -x 'QUARKUS_LINE = "${{ matrix.quarkus-line }}"' MODULE.bazel
 
+    - name: Select Java ${{ matrix.java }}
+      # The application is compiled for and run on this JDK. The augmentor (a tool) stays on
+      # the JDK from .bazelrc: it only reads class files, which depends on ASM/Jandex, not on its JDK.
+      run: |
+        {
+          echo "build --java_language_version=${{ matrix.java }}"
+          echo "build --java_runtime_version=remotejdk_${{ matrix.java }}"
+        } >> .bazelrc
+        tail -2 .bazelrc
+
     - name: Set up Java 21
+      # Host JDK for the Bazel server only; builds use the remote JDKs above.
       uses: actions/setup-java@v4
       with:
         java-version: '21'
@@ -51,9 +71,9 @@ jobs:
         path: |
           ~/.cache/bazel
           ~/.cache/bazelisk
-        key: ${{ runner.os }}-bazel-q${{ matrix.quarkus-line }}-${{ hashFiles('**/MODULE.bazel', '**/BUILD.bazel') }}
+        key: ${{ runner.os }}-bazel${{ matrix.bazel }}-q${{ matrix.quarkus-line }}-j${{ matrix.java }}-${{ hashFiles('**/MODULE.bazel', '**/BUILD.bazel', '.bazelrc') }}
         restore-keys: |
-          ${{ runner.os }}-bazel-q${{ matrix.quarkus-line }}-
+          ${{ runner.os }}-bazel${{ matrix.bazel }}-q${{ matrix.quarkus-line }}-j${{ matrix.java }}-
 
     - name: Build Core Tools
       run: bazel build //tools/...
@@ -74,14 +94,19 @@ jobs:
 
     - name: Smoke-run Hello World
       # Building only proves augmentation produced output; this proves the app boots and serves.
+      # The launcher runs on the Bazel-selected JDK from runfiles; PATH only has the host Java 21.
+      # Logging the java command line proves which JDK actually started the app.
       run: |
-        bazel-bin/examples/hello-world/hello-world > app.log 2>&1 &
+        bash -x bazel-bin/examples/hello-world/hello-world > app.log 2>&1 &
         APP_PID=$!
         trap 'kill $APP_PID 2>/dev/null || true' EXIT
         for i in $(seq 1 60); do
           if BODY=$(curl -sf http://localhost:8080/hello); then
             echo "GET /hello -> $BODY"
             echo "$BODY" | grep -q "Hello"
+            # The exec line must use remotejdk<N>, not the host java on PATH.
+            grep -m1 "^+ exec " app.log
+            grep -m1 "^+ exec " app.log | grep -q "remotejdk${{ matrix.java }}_"
             exit 0
           fi
           if ! kill -0 $APP_PID 2>/dev/null; then

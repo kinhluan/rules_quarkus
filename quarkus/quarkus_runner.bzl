@@ -22,6 +22,12 @@ def _quarkus_runner_impl(ctx):
         fail("augmented_app must produce the augmented application directory")
     augmented_dir = augmented_files[0]
 
+    # Run on the JDK Bazel selected (--java_runtime_version), like java_binary does, so an app
+    # compiled for Java 25 doesn't start on whatever `java` happens to be on PATH.
+    java_runtime_files = ctx.attr._java_runtime[DefaultInfo].files
+    java_exe = [f for f in java_runtime_files.to_list() if f.path.endswith("/bin/java") or f.path.endswith("/bin/java.exe")]
+    java_runfiles_path = _runfiles_path(java_exe[0]) if java_exe else ""
+
     jvm_flags = " ".join(['"%s"' % f.replace('"', '\\"') for f in ctx.attr.jvm_flags])
 
     script = ctx.actions.declare_file(ctx.label.name)
@@ -49,6 +55,18 @@ if [[ ! -d "$APP_DIR/lib/boot" ]]; then
     exit 1
 fi
 
+# JDK selected by Bazel (from runfiles); falls back to `java` on PATH if it isn't there.
+JAVA="java"
+JAVA_RUNFILES_PATH="{java_runfiles_path}"
+if [[ -n "$JAVA_RUNFILES_PATH" ]]; then
+    for root in "${{RUNFILES_DIR:-}}" "$0.runfiles"; do
+        if [[ -n "$root" && -x "$root/$JAVA_RUNFILES_PATH" ]]; then
+            JAVA="$root/$JAVA_RUNFILES_PATH"
+            break
+        fi
+    done
+fi
+
 # Remote debugging: DEBUG=1 (or true) in the environment, or --debug on the command line.
 # DEBUG_SUSPEND=n starts the app without waiting for a debugger.
 EXTRA_JVM_FLAGS=()
@@ -68,18 +86,19 @@ fi
 # Launch through the boot classpath only. quarkus-run.jar's manifest may lack a Class-Path
 # in Bazel builds, and putting lib/main on the system classpath would load application
 # classes twice (once there, once in Quarkus' RunnerClassLoader).
-exec java {jvm_flags} ${{EXTRA_JVM_FLAGS[@]+"${{EXTRA_JVM_FLAGS[@]}}"}} \\
+exec "$JAVA" {jvm_flags} ${{EXTRA_JVM_FLAGS[@]+"${{EXTRA_JVM_FLAGS[@]}}"}} \\
     -cp "$APP_DIR/lib/boot/*" \\
     io.quarkus.bootstrap.runner.QuarkusEntryPoint ${{APP_ARGS[@]+"${{APP_ARGS[@]}}"}}
 """.format(
             runfiles_path = _runfiles_path(augmented_dir),
             augmented_basename = augmented_dir.basename,
             jvm_flags = jvm_flags,
+            java_runfiles_path = java_runfiles_path,
         ),
         is_executable = True,
     )
 
-    runfiles = ctx.runfiles(files = [augmented_dir] + ctx.files.data)
+    runfiles = ctx.runfiles(files = [augmented_dir] + ctx.files.data, transitive_files = java_runtime_files)
     for d in ctx.attr.data:
         runfiles = runfiles.merge(d[DefaultInfo].default_runfiles)
 
@@ -107,6 +126,10 @@ quarkus_runner = rule(
             default = [],
             allow_files = True,
             doc = "Runtime data files (e.g. config files) made available in runfiles",
+        ),
+        "_java_runtime": attr.label(
+            default = "@rules_java//toolchains:current_java_runtime",
+            doc = "JDK the launcher runs the application on",
         ),
     },
     doc = """

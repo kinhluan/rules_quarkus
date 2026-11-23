@@ -37,7 +37,9 @@ To try the Quarkus 4 line, set `QUARKUS_LINE = "4"` in `MODULE.bazel`, run the c
 before committing. CI does the same edit with `sed`, so keep that assignment on one line, in exactly
 that form.
 
-Bazel 7.6.1 (`.bazelversion`) and Java 21.
+Bazel 8.8.2 (`.bazelversion`) and Java 21 by default. CI also runs Bazel 7 and 9 and Java 25
+(`USE_BAZEL_VERSION=9.3.2 bazel ...` with bazelisk). `MODULE.bazel.lock` is gitignored: its format
+differs between Bazel versions.
 
 ## Rules of the road
 
@@ -55,6 +57,9 @@ Bazel 7.6.1 (`.bazelversion`) and Java 21.
 - **Runfiles paths.** A `short_path` starting with `../` is an external repo (`<repo>/...`). Anything else is
   under `_main/`. See `_runfiles_path` in `quarkus_runner.bzl`.
 - **The runner puts only `lib/boot/` on the classpath.** Adding `lib/main/` loads app classes twice.
+- **The runner uses the JDK from runfiles** (`@rules_java//toolchains:current_java_runtime`), not `java` on PATH.
+- **Supported Bazel: 7.7.1+, 8.6+, 9** (floor set by rules_jvm_external 7). Load every rule from its ruleset (`@rules_java//java:defs.bzl`, ...); Bazel 9
+  has no native rule autoloading. Don't use WORKSPACE.
 
 ## Adding an extension
 
