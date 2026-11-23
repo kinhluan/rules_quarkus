@@ -17,6 +17,8 @@ and the project uses [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - **The launcher runs on the Bazel-selected JDK** (`--java_runtime_version`), shipped in its runfiles,
   instead of `java` from `PATH`. It falls back to `PATH` only if no JDK is found in runfiles.
 - rules_java 8.14.0 → 9.9.0 (provides `remotejdk_25`). Development Bazel 7.6.1 → 8.8.2.
+- contrib_rules_jvm (dev only) 0.27.0 → 0.34.0: works on Bazel 9 and no longer passes
+  `-Djava.security.manager=allow`, which JDK 24+ rejects at start-up.
 - `.bazelrc`: `--experimental_reuse_sandbox_directories` → `--reuse_sandbox_directories`.
 - CI matrix: Quarkus line × Java on the default Bazel, plus Bazel 7 and 9 on the default line and Java.
   The smoke run checks that the app started on the expected JDK.

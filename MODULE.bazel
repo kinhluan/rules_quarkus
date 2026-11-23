@@ -16,7 +16,7 @@ bazel_dep(name = "rules_java", version = "9.9.0")
 bazel_dep(name = "rules_jvm_external", version = "6.6")
 
 # Test-only: JUnit runner for the augmentor tests (//tools/src/test:tests)
-bazel_dep(name = "contrib_rules_jvm", version = "0.27.0", dev_dependency = True)
+bazel_dep(name = "contrib_rules_jvm", version = "0.34.0", dev_dependency = True)
 
 # Maven dependencies for Quarkus
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
