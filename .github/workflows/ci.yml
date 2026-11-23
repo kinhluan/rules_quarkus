@@ -155,8 +155,9 @@ jobs:
       run: bazel build //:my-app
 
     - name: rules_quarkus adds no Maven artifacts to the consumer's @maven
-      # Each of these is declared only by rules_quarkus' own (dev) maven.install, never by the
-      # consumer or by anything the consumer depends on. If one shows up, the ruleset leaked.
+      # Each of these is declared only by rules_quarkus' own (dev) maven.install, and is not a
+      # transitive dependency of what the consumer declares. If one shows up, the ruleset leaked.
+      # (JUnit is not usable here: quarkus-core-deployment depends on it.)
       run: |
         leaked=0
         for t in \
@@ -165,21 +166,18 @@ jobs:
             io_quarkus_quarkus_reactive_oracle_client \
             io_quarkiverse_langchain4j_quarkus_langchain4j_core \
             io_quarkiverse_tika_quarkus_tika \
-            org_junit_jupiter_junit_jupiter_api; do
+            io_quarkus_quarkus_messaging_rabbitmq \
+            io_quarkus_quarkus_redis_client \
+            io_quarkus_quarkus_smallrye_health; do
           if bazel query "@maven//:$t" >/dev/null 2>&1; then
             echo "::error::@maven//:$t exists in the consumer's @maven, but the consumer never declared it"
             leaked=1
-            echo "Non-JUnit artifacts in @maven that depend on it, at any depth (non-empty = transitive dep):"
-            bazel query "rdeps(@maven//:all, @maven//:$t)" 2>/dev/null \
-              | grep -vE 'junit|opentest4j|apiguardian' || true
+            echo "Artifacts in @maven that depend on it (non-empty = transitive dep, pick another sentinel):"
+            bazel query "rdeps(@maven//:all, @maven//:$t) except @maven//:$t" 2>/dev/null | head -20 || true
           else
             echo "ok: @maven//:$t absent"
           fi
         done
-        if [ $leaked = 1 ]; then
-          echo "Modules contributing to the maven extension:"
-          bazel mod show_extension @rules_jvm_external//:extensions.bzl%maven 2>&1 | head -80 || true
-        fi
         exit $leaked
 
     - name: Smoke-run
