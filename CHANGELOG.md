@@ -6,6 +6,27 @@ and the project uses [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 
 ## [Unreleased]
 
+### Added
+
+- `e2e/consumer`: a separate Bazel module that uses rules_quarkus as the README says. CI builds it, runs it,
+  and checks that rules_quarkus adds no Maven artifacts to its `@maven`.
+
+### Fixed
+
+- `@rules_quarkus//quarkus:defs.bzl`, the documented entry point, failed to load ("conflicting global
+  declaration of 'quarkus_application'"): it re-assigned loaded names. The examples loaded `quarkus.bzl`
+  directly, so CI never loaded it; they now load `defs.bzl`, and `e2e/consumer` loads it as users do.
+
+### Breaking
+
+- **rules_quarkus no longer adds Maven artifacts to your `@maven`.** Before, its `maven.install(name = "maven")`
+  was merged into yours by rules_jvm_external, adding about 45 artifacts and their transitive dependencies
+  (Kafka, gRPC, Oracle, LangChain4j, Tika, JUnit, ...) and its version pins. Now all of them are dev
+  dependencies. If you relied on one of them without declaring it, declare it in your `maven.install`.
+- **Declare the augmentor's dependencies yourself**, at your Quarkus version:
+  `io.quarkus:quarkus-bootstrap-core`, `io.quarkus:quarkus-bootstrap-app-model` and `org.jboss.logging:jboss-logging`.
+  Your Maven repository must be named `maven`.
+
 ## [0.4.0] - 2026-11-23
 
 ### Added

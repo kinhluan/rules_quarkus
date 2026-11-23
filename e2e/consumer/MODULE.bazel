@@ -1,0 +1,42 @@
+"""A workspace that uses rules_quarkus the way the README tells users to.
+
+It is its own Bazel module, so rules_quarkus is a *dependency* here, not the root:
+this is the only place where problems that consumers hit (a ruleset leaking Maven
+artifacts into @maven, runfiles paths of an external repository, ...) become visible.
+Keep it in sync with the Installation section of README.md.
+"""
+
+module(name = "consumer")
+
+bazel_dep(name = "rules_quarkus", version = "0.4.0")
+local_path_override(
+    module_name = "rules_quarkus",
+    path = "../..",
+)
+
+bazel_dep(name = "rules_java", version = "9.9.0")
+bazel_dep(name = "rules_jvm_external", version = "7.2")
+
+QUARKUS_VERSION = "3.40.1.2"
+
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+maven.install(
+    name = "maven",
+    artifacts = [
+        "io.quarkus:quarkus-core:%s" % QUARKUS_VERSION,
+        "io.quarkus:quarkus-arc:%s" % QUARKUS_VERSION,
+        "io.quarkus:quarkus-arc-deployment:%s" % QUARKUS_VERSION,
+        "io.quarkus:quarkus-rest:%s" % QUARKUS_VERSION,
+        "io.quarkus:quarkus-rest-deployment:%s" % QUARKUS_VERSION,
+        "io.quarkus:quarkus-vertx-http:%s" % QUARKUS_VERSION,
+        "io.quarkus:quarkus-vertx-http-deployment:%s" % QUARKUS_VERSION,
+        "jakarta.ws.rs:jakarta.ws.rs-api:4.0.0",
+        # Required by the rules_quarkus augmentor, at the same Quarkus version.
+        "io.quarkus:quarkus-bootstrap-core:%s" % QUARKUS_VERSION,
+        "io.quarkus:quarkus-bootstrap-app-model:%s" % QUARKUS_VERSION,
+        "org.jboss.logging:jboss-logging:3.6.3.Final",
+    ],
+    repositories = ["https://repo1.maven.org/maven2"],
+    version_conflict_policy = "pinned",
+)
+use_repo(maven, "maven")

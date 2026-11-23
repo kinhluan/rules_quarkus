@@ -21,6 +21,7 @@ configurable one.
 | `tools/src/main/java/io/quarkus/bazel/bootstrap/` | The augmentor (Java). Entry is `BootstrapAugmentor`, worker loop in `WorkerLoop`. |
 | `tools/src/test/` | JUnit 5 tests (`java_test_suite` from contrib_rules_jvm, a dev dependency). |
 | `examples/` | `hello-world` and `demo-extensions`. These are the integration tests. |
+| `e2e/consumer/` | A separate Bazel module that depends on rules_quarkus as users do (`local_path_override`). Ignored by the root workspace (`.bazelignore`); build it from its own directory. |
 | `examples/quarkus_line.bzl` | Repo rule exposing per-line labels, e.g. `@quarkus_line//:cdi_api`. |
 | `MODULE.bazel` | Pinned Maven deps. `_PROFILES` holds one profile per Quarkus line, picked by `QUARKUS_LINE`. |
 | `.github/workflows/ci.yml` | Matrix over Quarkus lines: build, test, smoke-run hello-world. |
@@ -43,6 +44,12 @@ differs between Bazel versions.
 
 ## Rules of the road
 
+- **Never add Maven artifacts to the user's `@maven`.** The non-dev `maven` extension usage in `MODULE.bazel`
+  only calls `use_repo(maven, "maven")`. Every `install`/`artifact` tag goes on `maven_dev`
+  (`dev_dependency = True`). `//tools` may depend only on `quarkus-bootstrap-core`, `quarkus-bootstrap-app-model`
+  and `jboss-logging` from `@maven`; adding a fourth one is a breaking change for every user.
+  `e2e/consumer` and its CI job check this.
+- **Augmentation never downloads.** `BootstrapAugmentor` sets `setOffline(true)`. A missing jar is a build error.
 - **Don't make consumers load dev tooling.** Anything users depend on (`//quarkus`, `//tools:bootstrap_augmentor`
   and its deps) must not load `contrib_rules_jvm` or other dev dependencies. Tests live in
   `//tools/src/test` for that reason.

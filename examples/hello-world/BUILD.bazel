@@ -5,7 +5,7 @@ Demonstrates a simple Quarkus REST application built with Bazel
 using the QuarkusBootstrap API approach.
 """
 
-load("//quarkus:quarkus.bzl", "quarkus_application")
+load("//quarkus:defs.bzl", "quarkus_application")
 
 quarkus_application(
     name = "hello-world",
