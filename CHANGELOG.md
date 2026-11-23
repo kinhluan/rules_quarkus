@@ -8,10 +8,18 @@ and the project uses [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 
 ### Added
 
+- Bazel 7, 8 and 9 and Java 21 and 25 are supported and tested in CI. `MODULE.bazel` declares
+  `bazel_compatibility = [">=7.0.0"]`.
 - `AGENTS.md`: repository guide for AI coding agents (layout, commands, invariants). `CLAUDE.md` imports it.
 
 ### Changed
 
+- **The launcher runs on the Bazel-selected JDK** (`--java_runtime_version`), shipped in its runfiles,
+  instead of `java` from `PATH`. It falls back to `PATH` only if no JDK is found in runfiles.
+- rules_java 8.14.0 → 9.9.0 (provides `remotejdk_25`). Development Bazel 7.6.1 → 8.8.2.
+- `.bazelrc`: `--experimental_reuse_sandbox_directories` → `--reuse_sandbox_directories`.
+- CI matrix: Quarkus line × Java on the default Bazel, plus Bazel 7 and 9 on the default line and Java.
+  The smoke run checks that the app started on the expected JDK.
 - README rewritten: status table (supported / planned), Mermaid architecture diagram, and an
   extension table that separates extensions augmented in CI from those that are only pinned.
   Fixed the launcher path in the quick start (`bazel-bin/my-app`).

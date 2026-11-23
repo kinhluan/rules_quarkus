@@ -24,6 +24,8 @@ the API is small enough to read in one sitting, and the rules are plain Starlark
 | Augmentation in a persistent worker (JSON protocol) | ✅ |
 | Quarkus 3.40.1.2 LTS | ✅ CI, default |
 | Quarkus 4.0.0 | 🧪 CI, experimental |
+| Bazel 7, 8, 9 | ✅ CI (7.7.2, 8.8.2 default, 9.3.2) |
+| Java 21, 25 | ✅ CI. The app is compiled for and run on the JDK Bazel selects |
 | `quarkus_library` shared between apps, CDI beans discovered | ✅ |
 | Remote debugging (`--debug`, JDWP) | ✅ |
 | `@QuarkusTest` as a Bazel test target | ❌ planned |
@@ -214,12 +216,22 @@ ibazel run //:my-app                           # rebuild and restart on change (
 
 `--debug` is consumed by the launcher. Every other argument is passed to the app.
 
+The launcher runs on the JDK that Bazel resolved for the target (`--java_runtime_version`), shipped
+in its runfiles, not on the `java` from `PATH`. To build and run on Java 25:
+
+```bash
+bazel run //:my-app --java_language_version=25 --java_runtime_version=remotejdk_25
+```
+
+Augmentation itself runs on the tool JDK (`--tool_java_runtime_version`). It can stay on 21:
+reading Java 25 class files depends on the ASM and Jandex versions, not on the JDK running them.
+
 ## Requirements
 
 | Component | Version |
 |---|---|
-| Bazel | 7.x with Bzlmod (CI uses 7.6.1, see `.bazelversion`) |
-| Java | 21 |
+| Bazel | 7, 8 or 9, with Bzlmod. Development uses `.bazelversion` (8.8.2) |
+| Java | 21 or 25 |
 | Quarkus | 3.40.1.2 LTS, or 4.0.0 (experimental) |
 
 ## More
