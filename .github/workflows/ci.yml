@@ -169,8 +169,9 @@ jobs:
           if bazel query "@maven//:$t" >/dev/null 2>&1; then
             echo "::error::@maven//:$t exists in the consumer's @maven, but the consumer never declared it"
             leaked=1
-            echo "Artifacts in @maven that depend on it directly (non-empty = transitive dep, not a leak):"
-            bazel query "rdeps(@maven//:all, @maven//:$t, 1) except @maven//:$t" 2>/dev/null || true
+            echo "Non-JUnit artifacts in @maven that depend on it, at any depth (non-empty = transitive dep):"
+            bazel query "rdeps(@maven//:all, @maven//:$t)" 2>/dev/null \
+              | grep -vE 'junit|opentest4j|apiguardian' || true
           else
             echo "ok: @maven//:$t absent"
           fi
