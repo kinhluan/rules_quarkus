@@ -6,19 +6,17 @@ and the project uses [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-23
+
 ### Added
 
-- Bazel 7, 8 and 9 and Java 21 and 25 are supported and tested in CI. `MODULE.bazel` declares
+- Bazel 7.7.1+, 8.6+ and 9, and Java 21 and 25, are supported and tested in CI. `MODULE.bazel` declares
   `bazel_compatibility = [">=7.7.1"]`.
 - `AGENTS.md`: repository guide for AI coding agents (layout, commands, invariants). `CLAUDE.md` imports it.
 
 ### Changed
 
-- **The launcher runs on the Bazel-selected JDK** (`--java_runtime_version`), shipped in its runfiles,
-  instead of `java` from `PATH`. It falls back to `PATH` only if no JDK is found in runfiles.
 - rules_java 8.14.0 → 9.9.0 (provides `remotejdk_25`). Development Bazel 7.6.1 → 8.8.2.
-- **rules_jvm_external 6.6 → 7.2.** 6.x pulls in rules_android 0.6, which uses the native `CcInfo` removed
-  in Bazel 9. 7.x requires Bazel 7.7.1+, 8.6+ or 9: update `rules_jvm_external` in your own `MODULE.bazel` too.
 - contrib_rules_jvm (dev only) 0.27.0 → 0.34.0: works on Bazel 9 and no longer passes
   `-Djava.security.manager=allow`, which JDK 24+ rejects at start-up.
 - `.bazelrc`: `--experimental_reuse_sandbox_directories` → `--reuse_sandbox_directories`.
@@ -27,6 +25,16 @@ and the project uses [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - README rewritten: status table (supported / planned), Mermaid architecture diagram, and an
   extension table that separates extensions augmented in CI from those that are only pinned.
   Fixed the launcher path in the quick start (`bazel-bin/my-app`).
+
+### Breaking
+
+- **Bazel 7.7.1+, 8.6+ or 9 is required** (`bazel_compatibility = [">=7.7.1"]`), because
+  rules_jvm_external 7 requires it. Bazel 7.0–7.7.0 and 8.0–8.5 are no longer supported.
+- **rules_jvm_external 6.6 → 7.2.** 6.x pulls in rules_android 0.6, which uses the native `CcInfo` removed
+  in Bazel 9. Update `rules_jvm_external` in your own `MODULE.bazel` to 7.2.
+- **The launcher runs on the Bazel-selected JDK** (`--java_runtime_version`), shipped in its runfiles,
+  instead of `java` from `PATH`. It falls back to `PATH` only if no JDK is found in runfiles. Pass
+  `--java_runtime_version` to choose the JDK; `JAVA_HOME` and `PATH` no longer do.
 
 ## [0.3.0] - 2026-11-22
 
@@ -104,7 +112,8 @@ and the project uses [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 
 - Replaced `native.sh_binary` (removed in Bazel 9); pinned Bazel 7.6.1.
 
-[Unreleased]: https://github.com/kinhluan/rules_quarkus/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/kinhluan/rules_quarkus/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/kinhluan/rules_quarkus/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/kinhluan/rules_quarkus/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/kinhluan/rules_quarkus/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kinhluan/rules_quarkus/releases/tag/v0.1.0

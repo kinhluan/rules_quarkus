@@ -39,11 +39,11 @@ the API is small enough to read in one sitting, and the rules are plain Starlark
 Add to your `MODULE.bazel`:
 
 ```python
-bazel_dep(name = "rules_quarkus", version = "0.3.0")
+bazel_dep(name = "rules_quarkus", version = "0.4.0")
 git_override(
     module_name = "rules_quarkus",
     remote = "https://github.com/kinhluan/rules_quarkus.git",
-    tag = "v0.3.0",  # or: commit = "<sha>" to pin an unreleased revision
+    tag = "v0.4.0",  # or: commit = "<sha>" to pin an unreleased revision
 )
 
 bazel_dep(name = "rules_jvm_external", version = "7.2")
