@@ -11,6 +11,12 @@ and the project uses [Semantic Versioning](https://semver.org/) (pre-1.0: minor 
 - `e2e/consumer`: a separate Bazel module that uses rules_quarkus as the README says. CI builds it, runs it,
   and checks that rules_quarkus adds no Maven artifacts to its `@maven`.
 
+### Fixed
+
+- `@rules_quarkus//quarkus:defs.bzl`, the documented entry point, failed to load ("conflicting global
+  declaration of 'quarkus_application'"): it re-assigned loaded names. The examples loaded `quarkus.bzl`
+  directly, so CI never loaded it; they now load `defs.bzl`, and `e2e/consumer` loads it as users do.
+
 ### Breaking
 
 - **rules_quarkus no longer adds Maven artifacts to your `@maven`.** Before, its `maven.install(name = "maven")`

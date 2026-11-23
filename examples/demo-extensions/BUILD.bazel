@@ -1,4 +1,4 @@
-load("//quarkus:quarkus.bzl", "quarkus_application")
+load("//quarkus:defs.bzl", "quarkus_application")
 
 quarkus_application(
     name = "demo-extensions",
