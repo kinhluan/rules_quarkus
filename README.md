@@ -30,7 +30,8 @@ the API is small enough to read in one sitting, and the rules are plain Starlark
 | Remote debugging (`--debug`, JDWP) | ✅ |
 | `@QuarkusTest` as a Bazel test target | ❌ planned |
 | Choosing the Quarkus version from a consumer's `MODULE.bazel` | ❌ planned. Today the line is selected in this repo's `MODULE.bazel` |
-| `maven_install.json` lockfile | ❌ planned |
+| No Maven artifacts added to the user's `@maven`; augmentation never downloads | ✅ CI (`e2e/consumer`) |
+| `maven_install.json` lockfile for this repo's examples | ❌ planned |
 | Dev mode (live reload) | ❌ not planned yet. Use `ibazel run` |
 | Native image, uber-jar | ❌ not planned yet |
 
@@ -60,15 +61,30 @@ maven.install(
         "io.quarkus:quarkus-vertx-http:3.40.1.2",
         "io.quarkus:quarkus-vertx-http-deployment:3.40.1.2",
         "jakarta.ws.rs:jakarta.ws.rs-api:4.0.0",
+        # Required by the rules_quarkus augmentor, at the same Quarkus version:
+        "io.quarkus:quarkus-bootstrap-core:3.40.1.2",
+        "io.quarkus:quarkus-bootstrap-app-model:3.40.1.2",
+        "org.jboss.logging:jboss-logging:3.6.3.Final",
     ],
     version_conflict_policy = "pinned",
 )
 use_repo(maven, "maven")
 ```
 
+**rules_quarkus adds nothing to your `@maven`.** Every Maven artifact in your workspace is one you
+declared, so your lockfile, version pins and CVE/license scans see the complete list. In return:
+
+- Name the repository `maven` (the default). The augmentor reads its three dependencies from `@maven`.
+- Declare `quarkus-bootstrap-core` and `quarkus-bootstrap-app-model` at **your** Quarkus version, plus
+  `jboss-logging`. A mismatch with `quarkus-core-deployment` causes class loading errors during augmentation.
+- Declare every `-deployment` module your extensions need. Augmentation runs offline and never
+  downloads anything.
+
+[`e2e/consumer`](e2e/consumer/) is this setup as a separate Bazel module. CI builds it, runs it and
+checks that no artifact from rules_quarkus' own examples appears in its `@maven`.
+
 `git_override` only takes effect in the root module. `bazel_dep` still needs a `version`, but the
-override decides which code is fetched. Deployment modules (`*-deployment`) must be in the same
-`maven.install` as their runtime modules: augmentation only sees what Bazel resolved.
+override decides which code is fetched.
 
 ## Quick start
 

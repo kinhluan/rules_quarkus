@@ -1,0 +1,2 @@
+# Separate Bazel workspace (its own MODULE.bazel), built from its own directory.
+e2e

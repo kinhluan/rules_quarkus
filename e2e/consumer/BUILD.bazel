@@ -1,0 +1,26 @@
+load("@rules_quarkus//quarkus:defs.bzl", "quarkus_application")
+
+# Same as the Quick start in README.md.
+quarkus_application(
+    name = "my-app",
+    srcs = glob(["src/main/java/**/*.java"]),
+    resources = glob(["src/main/resources/**/*"]),
+    main_class = "io.quarkus.runner.GeneratedMain",
+    deps = [
+        "@maven//:io_quarkus_quarkus_core",
+        "@maven//:jakarta_inject_jakarta_inject_api",
+        "@maven//:jakarta_ws_rs_jakarta_ws_rs_api",
+        "@maven//:jakarta_enterprise_jakarta_enterprise_cdi_api",
+    ],
+    runtime_extensions = [
+        "@maven//:io_quarkus_quarkus_arc",
+        "@maven//:io_quarkus_quarkus_rest",
+        "@maven//:io_quarkus_quarkus_vertx_http",
+    ],
+    deployment_extensions = [
+        "@maven//:io_quarkus_quarkus_arc_deployment",
+        "@maven//:io_quarkus_quarkus_rest_deployment",
+        "@maven//:io_quarkus_quarkus_vertx_http_deployment",
+    ],
+    jvm_flags = ["-Djava.util.logging.manager=org.jboss.logmanager.LogManager"],
+)

@@ -18,8 +18,25 @@ bazel_dep(name = "rules_jvm_external", version = "7.2")
 # Test-only: JUnit runner for the augmentor tests (//tools/src/test:tests)
 bazel_dep(name = "contrib_rules_jvm", version = "0.34.0", dev_dependency = True)
 
-# Maven dependencies for Quarkus
+# ===========================================
+# Maven: consume the user's @maven, contribute nothing to it
+# ===========================================
+# rules_jvm_external merges every maven.install(name = "maven") from every module into a
+# single @maven repo. A ruleset that declares artifacts there silently adds them to its
+# users' dependency graph, lockfile and CVE/license scans. So this module never calls
+# maven.install outside dev_dependency: it only *reads* the root module's @maven.
+#
+# The augmentor (//tools:bootstrap_augmentor) needs these three artifacts from it, at the
+# user's Quarkus version (they must match quarkus-core-deployment):
+#   io.quarkus:quarkus-bootstrap-core
+#   io.quarkus:quarkus-bootstrap-app-model
+#   org.jboss.logging:jboss-logging
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+use_repo(maven, "maven")
+
+# Everything below is only used when this repository is the root module: the examples,
+# CI and the augmentor tests. Consumers of rules_quarkus never see these artifacts.
+maven_dev = use_extension("@rules_jvm_external//:extensions.bzl", "maven", dev_dependency = True)
 
 # ===========================================
 # Quarkus version line: "3" (3.x LTS) or "4" (4.x)
@@ -86,7 +103,7 @@ _UNLEASH_ARTIFACTS = [
     "io.quarkiverse.unleash:quarkus-unleash:%s" % UNLEASH_VERSION,
 ] if UNLEASH_VERSION else []
 
-maven.install(
+maven_dev.install(
     name = "maven",
     artifacts = [
         # ===========================================
@@ -228,7 +245,7 @@ maven.install(
 )
 
 # Add deployment artifacts with exclusions for circular dependencies
-maven.artifact(
+maven_dev.artifact(
     artifact = "quarkus-rest-deployment",
     exclusions = [
         "org.eclipse.sisu:org.eclipse.sisu.plexus",
@@ -239,7 +256,7 @@ maven.artifact(
     group = "io.quarkus",
     version = QUARKUS_VERSION,
 )
-maven.artifact(
+maven_dev.artifact(
     artifact = "quarkus-vertx-http-deployment",
     exclusions = [
         "org.eclipse.sisu:org.eclipse.sisu.plexus",
@@ -254,7 +271,7 @@ maven.artifact(
 # ===========================================
 # Tier 1: REST Jackson + Mutiny deployment
 # ===========================================
-maven.artifact(
+maven_dev.artifact(
     artifact = "quarkus-rest-jackson-deployment",
     exclusions = [
         "org.eclipse.sisu:org.eclipse.sisu.plexus",
@@ -265,7 +282,7 @@ maven.artifact(
     group = "io.quarkus",
     version = QUARKUS_VERSION,
 )
-maven.artifact(
+maven_dev.artifact(
     artifact = "quarkus-mutiny-deployment",
     exclusions = [
         "org.eclipse.sisu:org.eclipse.sisu.plexus",
@@ -280,7 +297,7 @@ maven.artifact(
 # ===========================================
 # Tier 2: Reactive DB Clients deployment
 # ===========================================
-maven.artifact(
+maven_dev.artifact(
     artifact = "quarkus-reactive-oracle-client-deployment",
     exclusions = [
         "org.eclipse.sisu:org.eclipse.sisu.plexus",
@@ -291,7 +308,7 @@ maven.artifact(
     group = "io.quarkus",
     version = QUARKUS_VERSION,
 )
-maven.artifact(
+maven_dev.artifact(
     artifact = "quarkus-reactive-mysql-client-deployment",
     exclusions = [
         "org.eclipse.sisu:org.eclipse.sisu.plexus",
@@ -302,7 +319,7 @@ maven.artifact(
     group = "io.quarkus",
     version = QUARKUS_VERSION,
 )
-maven.artifact(
+maven_dev.artifact(
     artifact = "quarkus-redis-client-deployment",
     exclusions = [
         "org.eclipse.sisu:org.eclipse.sisu.plexus",
@@ -317,7 +334,7 @@ maven.artifact(
 # ===========================================
 # Tier 3: Messaging deployment
 # ===========================================
-maven.artifact(
+maven_dev.artifact(
     artifact = "quarkus-messaging-rabbitmq-deployment",
     exclusions = [
         "org.eclipse.sisu:org.eclipse.sisu.plexus",
@@ -328,7 +345,7 @@ maven.artifact(
     group = "io.quarkus",
     version = QUARKUS_VERSION,
 )
-maven.artifact(
+maven_dev.artifact(
     artifact = "quarkus-messaging-kafka-deployment",
     exclusions = [
         "org.eclipse.sisu:org.eclipse.sisu.plexus",
@@ -339,7 +356,7 @@ maven.artifact(
     group = "io.quarkus",
     version = QUARKUS_VERSION,
 )
-maven.artifact(
+maven_dev.artifact(
     artifact = "quarkus-grpc-deployment",
     exclusions = [
         "org.eclipse.sisu:org.eclipse.sisu.plexus",
@@ -354,7 +371,7 @@ maven.artifact(
 # ===========================================
 # Tier 4: Observability deployment
 # ===========================================
-maven.artifact(
+maven_dev.artifact(
     artifact = "quarkus-micrometer-registry-prometheus-deployment",
     exclusions = [
         "org.eclipse.sisu:org.eclipse.sisu.plexus",
@@ -365,7 +382,7 @@ maven.artifact(
     group = "io.quarkus",
     version = QUARKUS_VERSION,
 )
-maven.artifact(
+maven_dev.artifact(
     artifact = "quarkus-smallrye-health-deployment",
     exclusions = [
         "org.eclipse.sisu:org.eclipse.sisu.plexus",
@@ -382,7 +399,7 @@ maven.artifact(
 # ===========================================
 # Declared only on lines where Unleash is available (see _PROFILES).
 [
-    maven.artifact(
+    maven_dev.artifact(
         artifact = "quarkus-unleash-deployment",
         exclusions = [
             "org.eclipse.sisu:org.eclipse.sisu.plexus",
@@ -396,7 +413,7 @@ maven.artifact(
     for v in ([UNLEASH_VERSION] if UNLEASH_VERSION else [])
 ]
 
-maven.artifact(
+maven_dev.artifact(
     artifact = "quarkus-langchain4j-core-deployment",
     exclusions = [
         "org.eclipse.sisu:org.eclipse.sisu.plexus",
@@ -407,7 +424,7 @@ maven.artifact(
     group = "io.quarkiverse.langchain4j",
     version = LANGCHAIN4J_VERSION,
 )
-maven.artifact(
+maven_dev.artifact(
     artifact = "quarkus-langchain4j-openai-deployment",
     exclusions = [
         "org.eclipse.sisu:org.eclipse.sisu.plexus",
@@ -418,7 +435,7 @@ maven.artifact(
     group = "io.quarkiverse.langchain4j",
     version = LANGCHAIN4J_VERSION,
 )
-maven.artifact(
+maven_dev.artifact(
     artifact = "quarkus-langchain4j-ollama-deployment",
     exclusions = [
         "org.eclipse.sisu:org.eclipse.sisu.plexus",
@@ -429,7 +446,7 @@ maven.artifact(
     group = "io.quarkiverse.langchain4j",
     version = LANGCHAIN4J_VERSION,
 )
-maven.artifact(
+maven_dev.artifact(
     artifact = "quarkus-tika-deployment",
     exclusions = [
         "org.eclipse.sisu:org.eclipse.sisu.plexus",
@@ -440,7 +457,6 @@ maven.artifact(
     group = "io.quarkiverse.tika",
     version = TIKA_VERSION,
 )
-use_repo(maven, "maven")
 
 # Line-dependent aliases for the examples (see examples/quarkus_line.bzl).
 quarkus_line = use_repo_rule("//examples:quarkus_line.bzl", "quarkus_line")

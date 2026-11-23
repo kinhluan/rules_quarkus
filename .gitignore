@@ -29,3 +29,5 @@ dependency-reduced-pom.xml
 *.log
 
 /.obsidian
+# Nested e2e workspaces
+e2e/*/bazel-*
