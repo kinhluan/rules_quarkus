@@ -58,7 +58,7 @@ differs between Bazel versions.
   under `_main/`. See `_runfiles_path` in `quarkus_runner.bzl`.
 - **The runner puts only `lib/boot/` on the classpath.** Adding `lib/main/` loads app classes twice.
 - **The runner uses the JDK from runfiles** (`@rules_java//toolchains:current_java_runtime`), not `java` on PATH.
-- **Supported Bazel: 7, 8, 9.** Load every rule from its ruleset (`@rules_java//java:defs.bzl`, ...); Bazel 9
+- **Supported Bazel: 7.7.1+, 8.6+, 9** (floor set by rules_jvm_external 7). Load every rule from its ruleset (`@rules_java//java:defs.bzl`, ...); Bazel 9
   has no native rule autoloading. Don't use WORKSPACE.
 
 ## Adding an extension

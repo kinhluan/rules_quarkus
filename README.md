@@ -24,7 +24,7 @@ the API is small enough to read in one sitting, and the rules are plain Starlark
 | Augmentation in a persistent worker (JSON protocol) | ✅ |
 | Quarkus 3.40.1.2 LTS | ✅ CI, default |
 | Quarkus 4.0.0 | 🧪 CI, experimental |
-| Bazel 7, 8, 9 | ✅ CI (7.7.2, 8.8.2 default, 9.3.2) |
+| Bazel 7.7.1+, 8.6+, 9 | ✅ CI (7.7.2, 8.8.2 default, 9.3.2) |
 | Java 21, 25 | ✅ CI. The app is compiled for and run on the JDK Bazel selects |
 | `quarkus_library` shared between apps, CDI beans discovered | ✅ |
 | Remote debugging (`--debug`, JDWP) | ✅ |
@@ -46,7 +46,7 @@ git_override(
     tag = "v0.3.0",  # or: commit = "<sha>" to pin an unreleased revision
 )
 
-bazel_dep(name = "rules_jvm_external", version = "6.6")
+bazel_dep(name = "rules_jvm_external", version = "7.2")
 
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 maven.install(
@@ -230,7 +230,7 @@ reading Java 25 class files depends on the ASM and Jandex versions, not on the J
 
 | Component | Version |
 |---|---|
-| Bazel | 7, 8 or 9, with Bzlmod. Development uses `.bazelversion` (8.8.2) |
+| Bazel | 7.7.1+, 8.6+ or 9, with Bzlmod (required by rules_jvm_external 7). Development uses `.bazelversion` (8.8.2) |
 | Java | 21 or 25 |
 | Quarkus | 3.40.1.2 LTS, or 4.0.0 (experimental) |
 
